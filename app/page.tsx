@@ -37,6 +37,8 @@ import {
   Lock,
   LogOut,
   History,
+  MessageSquareQuote,
+  MessageCircle,
 } from 'lucide-react';
 import {
   generateOutreachMessage,
@@ -46,7 +48,7 @@ import {
 } from '@/lib/template-generator';
 import type { PlaceLead } from '@/app/api/places/route';
 
-type ActiveTab = 'search' | 'crm' | 'templates' | 'export' | 'settings';
+type ActiveTab = 'search' | 'crm' | 'copilot' | 'templates' | 'export' | 'settings';
 type OutreachStatus = 'new' | 'contacted' | 'followup' | 'closed' | 'rejected';
 
 interface LeadWithMeta extends PlaceLead {
@@ -284,6 +286,16 @@ export default function LeadFinderApp() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewModalLead, setPreviewModalLead] = useState<LeadWithMeta | null>(null);
   const [editedMessage, setEditedMessage] = useState('');
+
+  // AI Chat Copilot (Response Generator) State
+  const [copilotIncomingMessage, setCopilotIncomingMessage] = useState('');
+  const [copilotClientName, setCopilotClientName] = useState('');
+  const [copilotCategory, setCopilotCategory] = useState<OutreachCategory>('general');
+  const [copilotGoal, setCopilotGoal] = useState('closing_offer');
+  const [copilotPhone, setCopilotPhone] = useState('');
+  const [copilotGeneratedReply, setCopilotGeneratedReply] = useState('');
+  const [isGeneratingCopilot, setIsGeneratingCopilot] = useState(false);
+  const [isSendingCopilot, setIsSendingCopilot] = useState(false);
 
   // PIN Authentication Logic
   const handlePinInput = (index: number, value: string) => {
@@ -667,6 +679,89 @@ export default function LeadFinderApp() {
     setEditedMessage(initialText);
   };
 
+  const openCopilotForLead = (lead: LeadWithMeta) => {
+    setCopilotClientName(lead.name);
+    setCopilotCategory(lead.selectedCategory);
+    setCopilotPhone(lead.phoneAnalysis.cleaned || '');
+    setActiveTab('copilot');
+    setMobileSidebarOpen(false);
+  };
+
+  const handleGenerateCopilotReply = async (customIncoming?: string) => {
+    const textToProcess = customIncoming !== undefined ? customIncoming : copilotIncomingMessage;
+    if (!textToProcess.trim()) {
+      showToast('error', 'Masukkan atau paste pesan dari klien terlebih dahulu.');
+      return;
+    }
+
+    setIsGeneratingCopilot(true);
+    try {
+      const res = await fetch('/api/ai-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          incomingMessage: textToProcess,
+          businessName: copilotClientName || 'Klien',
+          category: copilotCategory,
+          replyGoal: copilotGoal,
+          senderName,
+          senderRole,
+          geminiKey: geminiApiKey || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal membuat balasan AI.');
+      }
+
+      setCopilotGeneratedReply(data.reply);
+      showToast('success', 'Balasan cerdas berhasil dibuat!');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Koneksi AI gagal.';
+      showToast('error', msg);
+    } finally {
+      setIsGeneratingCopilot(false);
+    }
+  };
+
+  const handleSendCopilotDirect = async () => {
+    if (!copilotPhone.trim()) {
+      showToast('error', 'Masukkan nomor WhatsApp tujuan terlebih dahulu.');
+      return;
+    }
+
+    if (!copilotGeneratedReply.trim()) {
+      showToast('error', 'Buat atau tulis teks balasan terlebih dahulu.');
+      return;
+    }
+
+    setIsSendingCopilot(true);
+    try {
+      const res = await fetch('/api/send-wa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target: copilotPhone.trim(),
+          message: copilotGeneratedReply.trim(),
+          token: fonnteToken || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal mengirim balasan via WhatsApp Gateway.');
+      }
+
+      showToast('success', `Balasan berhasil dikirim ke ${copilotPhone}!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Pengiriman balasan gagal.';
+      showToast('error', msg);
+    } finally {
+      setIsSendingCopilot(false);
+    }
+  };
+
   const handleDownloadWaList = () => {
     const listToExport = activeTab === 'crm' ? savedLeadsCrm : filteredLeads;
     const validNumbers = listToExport
@@ -902,6 +997,26 @@ export default function LeadFinderApp() {
 
             <button
               onClick={() => {
+                setActiveTab('copilot');
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+                activeTab === 'copilot'
+                  ? 'bg-slate-100 text-slate-900 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <MessageSquareQuote className="h-4 w-4 text-purple-600" />
+                <span>AI Balas Chat</span>
+              </div>
+              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                Copilot
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab('templates');
                 setMobileSidebarOpen(false);
               }}
@@ -913,7 +1028,7 @@ export default function LeadFinderApp() {
             >
               <div className="flex items-center gap-2.5">
                 <Bot className="h-4 w-4 text-slate-500" />
-                <span>AI Copywriter</span>
+                <span>AI Pitch Cold</span>
               </div>
             </button>
 
@@ -999,6 +1114,7 @@ export default function LeadFinderApp() {
               <h1 className="text-sm font-semibold text-slate-900">
                 {activeTab === 'search' && 'Cari Prospek Google Maps'}
                 {activeTab === 'crm' && 'Pipeline CRM & Prospek Tersimpan'}
+                {activeTab === 'copilot' && 'AI Response Copilot (Balas Chat Klien)'}
                 {activeTab === 'templates' && 'AI Copywriting Studio'}
                 {activeTab === 'export' && 'Ekspor Database Kontak'}
                 {activeTab === 'settings' && 'Pengaturan Gateway & Profil'}
@@ -1634,14 +1750,25 @@ export default function LeadFinderApp() {
                               </select>
                             </td>
                             <td className="px-4 py-2.5 text-right">
-                              <button
-                                onClick={() => handleAutoSendWhatsApp(lead)}
-                                disabled={!lead.phoneAnalysis.isMobile || dispatchCooldown > 0}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px]"
-                              >
-                                <Zap className="h-3 w-3 fill-current" />
-                                <span>Kirim WA</span>
-                              </button>
+                              <div className="inline-flex items-center gap-1.5 justify-end">
+                                <button
+                                  onClick={() => openCopilotForLead(lead)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[10px] border border-purple-200"
+                                  title="Buat balasan otomatis cerdas untuk chat klien ini"
+                                >
+                                  <MessageSquareQuote className="h-3 w-3" />
+                                  <span>Balas AI</span>
+                                </button>
+
+                                <button
+                                  onClick={() => handleAutoSendWhatsApp(lead)}
+                                  disabled={!lead.phoneAnalysis.isMobile || dispatchCooldown > 0}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px]"
+                                >
+                                  <Zap className="h-3 w-3 fill-current" />
+                                  <span>Kirim WA</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1650,6 +1777,244 @@ export default function LeadFinderApp() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB: AI RESPONSE COPILOT */}
+          {activeTab === 'copilot' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left: Client Message Input */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquareQuote className="h-4 w-4 text-purple-600" />
+                    <h3 className="font-bold text-xs text-slate-900 uppercase tracking-wider">
+                      Input Pesan dari Klien
+                    </h3>
+                  </div>
+                  <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200 font-medium">
+                    AI Response Copilot
+                  </span>
+                </div>
+
+                {/* Scenario Quick Chips */}
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-medium text-slate-500">Preset Pertanyaan Klien Populer:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      onClick={() => {
+                        const txt = 'Halo mas, harganya berapa ya untuk buat website? Ada paket apa saja?';
+                        setCopilotIncomingMessage(txt);
+                        handleGenerateCopilotReply(txt);
+                      }}
+                      className="px-2 py-1 text-[11px] font-medium bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-700 rounded-md border border-slate-200 transition cursor-pointer"
+                    >
+                      Tanya Harga / Paket
+                    </button>
+                    <button
+                      onClick={() => {
+                        const txt = 'Bisa ketemuan besok di kantor kami untuk presentasi dan diskusi langsung mas?';
+                        setCopilotIncomingMessage(txt);
+                        handleGenerateCopilotReply(txt);
+                      }}
+                      className="px-2 py-1 text-[11px] font-medium bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-700 rounded-md border border-slate-200 transition cursor-pointer"
+                    >
+                      Ajak Ketemu di Kantor
+                    </button>
+                    <button
+                      onClick={() => {
+                        const txt = 'Boleh minta contoh portofolio website yang sudah pernah dibuat mas?';
+                        setCopilotIncomingMessage(txt);
+                        handleGenerateCopilotReply(txt);
+                      }}
+                      className="px-2 py-1 text-[11px] font-medium bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-700 rounded-md border border-slate-200 transition cursor-pointer"
+                    >
+                      Minta Portofolio / Contoh
+                    </button>
+                    <button
+                      onClick={() => {
+                        const txt = 'Wah harganya agak kemahalan ya mas, bisa kurang gak ya budget saya terbatas';
+                        setCopilotIncomingMessage(txt);
+                        handleGenerateCopilotReply(txt);
+                      }}
+                      className="px-2 py-1 text-[11px] font-medium bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-700 rounded-md border border-slate-200 transition cursor-pointer"
+                    >
+                      Kemahalan / Nego
+                    </button>
+                  </div>
+                </div>
+
+                {/* Textarea for Client Message */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-800">
+                    Paste / Ketik Balasan dari Klien:
+                  </label>
+                  <textarea
+                    value={copilotIncomingMessage}
+                    onChange={(e) => setCopilotIncomingMessage(e.target.value)}
+                    placeholder="Contoh: 'Harganya berapa mas?', 'Bisa ketemuan besok di kantor?', 'Bisa minta portofolio?'"
+                    rows={5}
+                    className="w-full p-3 rounded-lg border border-slate-300 text-xs font-sans leading-relaxed text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                  />
+                </div>
+
+                {/* Context options */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-slate-700">Nama Bisnis / Klien</label>
+                    <input
+                      type="text"
+                      value={copilotClientName}
+                      onChange={(e) => setCopilotClientName(e.target.value)}
+                      placeholder="Bimbel Bintang"
+                      className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 text-xs text-slate-900"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-slate-700">Kategori Bisnis</label>
+                    <select
+                      value={copilotCategory}
+                      onChange={(e) => setCopilotCategory(e.target.value as OutreachCategory)}
+                      className="w-full px-2 py-1.5 rounded-md border border-slate-300 text-xs text-slate-900 bg-white"
+                    >
+                      <option value="general">Umum</option>
+                      <option value="umkm">UMKM (Katalog/Order)</option>
+                      <option value="jasa">Jasa/Instansi (Profil/Meet)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-slate-700">Arah Balasan</label>
+                    <select
+                      value={copilotGoal}
+                      onChange={(e) => setCopilotGoal(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-md border border-slate-300 text-xs text-slate-900 bg-white"
+                    >
+                      <option value="closing_offer">Penjelasan Harga & Closing</option>
+                      <option value="google_meet">Tawaran Google Meet 10 Menit</option>
+                      <option value="free_demo">Tawaran Preview / Demo Gratis</option>
+                      <option value="friendly">Santai & Edukasi</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleGenerateCopilotReply()}
+                  disabled={isGeneratingCopilot || !copilotIncomingMessage.trim()}
+                  className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold text-xs shadow-xs transition cursor-pointer"
+                >
+                  {isGeneratingCopilot ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      <span>Membuat Balasan Cerdas...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Bot className="h-3.5 w-3.5" />
+                      <span>Generate Balasan Cerdas (Gemini AI)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Right: AI Output & Direct Send */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-xs flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-4 w-4 text-emerald-600" />
+                      <h3 className="font-bold text-xs text-slate-900 uppercase tracking-wider">
+                        Draf Balasan Siap Kirim
+                      </h3>
+                    </div>
+                    {copilotGeneratedReply && (
+                      <span className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 font-mono font-medium">
+                        Ready to Send
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-800 flex justify-between">
+                      <span>Teks Balasan (Dapat Diedit Bebas):</span>
+                      <span className="text-slate-400 font-mono text-[11px]">{copilotGeneratedReply.length} karakter</span>
+                    </label>
+                    <textarea
+                      value={copilotGeneratedReply}
+                      onChange={(e) => setCopilotGeneratedReply(e.target.value)}
+                      placeholder="Hasil balasan cerdas dari AI akan muncul di sini..."
+                      rows={8}
+                      className="w-full p-3 rounded-lg border border-slate-300 text-xs font-sans leading-relaxed text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50/50"
+                    />
+                  </div>
+
+                  {/* Target Phone input for direct sending */}
+                  <div className="space-y-1 pt-1">
+                    <label className="text-[11px] font-medium text-slate-700">
+                      Nomor WhatsApp Klien (Opsional untuk Direct Send):
+                    </label>
+                    <input
+                      type="text"
+                      value={copilotPhone}
+                      onChange={(e) => setCopilotPhone(e.target.value)}
+                      placeholder="08123456789 atau 628..."
+                      className="w-full px-3 py-1.5 rounded-md border border-slate-300 text-xs text-slate-900 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    onClick={async () => {
+                      if (!copilotGeneratedReply) return;
+                      await navigator.clipboard.writeText(copilotGeneratedReply);
+                      showToast('success', 'Balasan berhasil disalin ke clipboard!');
+                    }}
+                    disabled={!copilotGeneratedReply}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
+                  >
+                    <Copy className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Salin Teks</span>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        if (!copilotGeneratedReply) return;
+                        const cleanP = copilotPhone.replace(/\D/g, '');
+                        const url = cleanP 
+                          ? `https://wa.me/${cleanP}?text=${encodeURIComponent(copilotGeneratedReply)}`
+                          : `https://wa.me/?text=${encodeURIComponent(copilotGeneratedReply)}`;
+                        window.open(url, '_blank');
+                      }}
+                      disabled={!copilotGeneratedReply}
+                      className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      Buka Web WA
+                    </button>
+
+                    <button
+                      onClick={handleSendCopilotDirect}
+                      disabled={!copilotGeneratedReply || !copilotPhone.trim() || isSendingCopilot}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs shadow-xs transition cursor-pointer"
+                    >
+                      {isSendingCopilot ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Mengirim...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="h-3.5 w-3.5 fill-current" />
+                          <span>Kirim via Fonnte</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
