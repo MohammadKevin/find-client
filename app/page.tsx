@@ -24,18 +24,16 @@ import {
   Eye,
   MessageSquare,
   ChevronDown,
-  Layers,
   Zap,
   CheckCheck,
   Bot,
-  Wand2,
   Users,
   Settings,
   Menu,
   X,
   Smartphone,
-  Flame,
-  Rocket,
+  Target,
+  ArrowRight,
 } from 'lucide-react';
 import {
   generateOutreachMessage,
@@ -70,13 +68,13 @@ const POPULAR_CITIES = [
 ];
 
 const PRESET_CATEGORIES = [
-  { label: 'Semua Instansi / Bebas', query: '' },
-  { label: 'Jasa & Bimbel (Les, Kursus, Daycare)', query: 'Bimbel Kursus' },
-  { label: 'Kesehatan & Klinik (Dokter, Gigi, Apotek)', query: 'Klinik Apotek' },
-  { label: 'Bengkel & Otomotif (Motor, Mobil, Salon)', query: 'Bengkel Otomotif' },
-  { label: 'UMKM Produk (Konveksi, Sablon, Baju)', query: 'Konveksi Sablon' },
-  { label: 'Kuliner & Katering (Catering, Bakery)', query: 'Katering Bakery' },
-  { label: 'Florist & Bunga (Buket, Souvenir)', query: 'Florist Toko Bunga' },
+  { label: 'Semua Kategori', query: '' },
+  { label: 'Bimbel & Kursus', query: 'Bimbel Kursus' },
+  { label: 'Kesehatan & Klinik', query: 'Klinik Apotek' },
+  { label: 'Bengkel & Otomotif', query: 'Bengkel Otomotif' },
+  { label: 'Konveksi & Sablon', query: 'Konveksi Sablon' },
+  { label: 'Katering & Bakery', query: 'Katering Bakery' },
+  { label: 'Florist & Toko Bunga', query: 'Florist Toko Bunga' },
 ];
 
 export interface CuratedRecommendation {
@@ -89,7 +87,6 @@ export interface CuratedRecommendation {
   tag: string;
   opportunityBadge: string;
   description: string;
-  iconBg: string;
 }
 
 const CURATED_RECOMMENDATIONS: CuratedRecommendation[] = [
@@ -99,11 +96,10 @@ const CURATED_RECOMMENDATIONS: CuratedRecommendation[] = [
     city: 'Malang',
     query: 'Bimbel Kursus di Malang',
     category: 'jasa',
-    categoryName: 'Pendidikan / Jasa',
-    tag: 'Kota Pelajar',
-    opportunityBadge: '🔥 Potensi Deal 85%',
-    description: 'Bimbel butuh landing page resmi untuk menampilkan info program, jadwal kelas, dan pendaftaran online.',
-    iconBg: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    categoryName: 'Jasa Pendidikan',
+    tag: 'Tinggi Peminat',
+    opportunityBadge: 'Potensi Deal 85%',
+    description: 'Bimbel butuh landing page resmi untuk info jadwal program, paket les, dan pendaftaran siswa baru.',
   },
   {
     id: 'konveksi-bandung',
@@ -111,11 +107,10 @@ const CURATED_RECOMMENDATIONS: CuratedRecommendation[] = [
     city: 'Bandung',
     query: 'Konveksi Sablon di Bandung',
     category: 'umkm',
-    categoryName: 'UMKM / Retail',
+    categoryName: 'UMKM Retail',
     tag: 'Pusat Fashion',
-    opportunityBadge: '⚡ Order Cepat',
-    description: 'Konveksi sangat butuh website katalog portofolio bahan, ukuran & price list agar hemat waktu balas chat.',
-    iconBg: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    opportunityBadge: 'Order Cepat',
+    description: 'Konveksi butuh website katalog portofolio bahan, size chart, dan daftar harga tanpa repot balas chat berulang.',
   },
   {
     id: 'klinik-surabaya',
@@ -123,47 +118,10 @@ const CURATED_RECOMMENDATIONS: CuratedRecommendation[] = [
     city: 'Surabaya',
     query: 'Klinik Gigi Dokter di Surabaya',
     category: 'jasa',
-    categoryName: 'Kesehatan / Medis',
+    categoryName: 'Kesehatan Medis',
     tag: 'Metropolitan',
-    opportunityBadge: '💎 Nilai Proyek Tinggi',
-    description: 'Klinik kesehatan butuh website resmi untuk kredibilitas pencarian Google & booking konsultasi pasien.',
-    iconBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  },
-  {
-    id: 'katering-solo',
-    title: 'Katering & Bakery',
-    city: 'Solo',
-    query: 'Katering Bakery di Solo',
-    category: 'umkm',
-    categoryName: 'Kuliner / Catering',
-    tag: 'Event & Wedding',
-    opportunityBadge: '🛒 Katalog Menu',
-    description: 'Katering membutuhkan katalog paket prasmanan & hampers yang bisa langsung diakses calon pengantin.',
-    iconBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  },
-  {
-    id: 'bengkel-semarang',
-    title: 'Bengkel & Detailing Mobil',
-    city: 'Semarang',
-    query: 'Bengkel Otomotif di Semarang',
-    category: 'jasa',
-    categoryName: 'Otomotif & Servis',
-    tag: 'Jasa Rutin',
-    opportunityBadge: '🚗 Repeat Customer',
-    description: 'Bengkel mobil butuh landing page Google Maps untuk menarik pemilik mobil baru yang mencari servis terdekat.',
-    iconBg: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-  },
-  {
-    id: 'florist-jogja',
-    title: 'Florist & Buket Wisuda',
-    city: 'Jogja',
-    query: 'Florist Toko Bunga di Jogja',
-    category: 'umkm',
-    categoryName: 'Florist / Souvenir',
-    tag: 'Musim Wisuda',
-    opportunityBadge: '🎓 Mahasiswa & Event',
-    description: 'Toko bunga butuh galeri katalog buket siap kirim instan untuk mahasiswa dan acara wisuda kampus.',
-    iconBg: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
+    opportunityBadge: 'Nilai Proyek Tinggi',
+    description: 'Klinik membutuhkan website profil kredibel di pencarian Google untuk jadwal dokter dan reservasi pasien.',
   },
 ];
 
@@ -173,9 +131,9 @@ const STATUS_CONFIG: Record<
 > = {
   new: {
     label: 'Baru (New)',
-    bg: 'bg-sky-50 text-sky-700',
-    text: 'text-sky-700',
-    border: 'border-sky-200',
+    bg: 'bg-blue-50 text-blue-700',
+    text: 'text-blue-700',
+    border: 'border-blue-200',
     icon: Sparkles,
   },
   contacted: {
@@ -187,8 +145,8 @@ const STATUS_CONFIG: Record<
   },
   followup: {
     label: 'Perlu Follow-up',
-    bg: 'bg-amber-50 text-amber-700',
-    text: 'text-amber-700',
+    bg: 'bg-amber-50 text-amber-800',
+    text: 'text-amber-800',
     border: 'border-amber-200',
     icon: Clock,
   },
@@ -219,7 +177,11 @@ export default function LeadFinderApp() {
   const [selectedCategoryPreset, setSelectedCategoryPreset] = useState(PRESET_CATEGORIES[1].query);
   const [filterNoWebsiteOnly, setFilterNoWebsiteOnly] = useState(true);
   const [filterValidWaOnly, setFilterValidWaOnly] = useState(false);
+  const [minRatingFilter, setMinRatingFilter] = useState<number>(0);
   const [statusFilter, setStatusFilter] = useState<'all' | OutreachStatus>('all');
+
+  // Anti-ban throttling cooldown (3.0s interval)
+  const [dispatchCooldown, setDispatchCooldown] = useState<number>(0);
 
   // API Keys & Configuration
   const [serpApiKey, setSerpApiKey] = useState(() => {
@@ -299,13 +261,23 @@ export default function LeadFinderApp() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsAppLoading(false);
-    }, 650);
+    }, 450);
     return () => clearTimeout(timer);
   }, []);
 
+  // Cooldown timer effect
+  useEffect(() => {
+    if (dispatchCooldown > 0) {
+      const interval = setInterval(() => {
+        setDispatchCooldown((prev) => Math.max(0, prev - 1));
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [dispatchCooldown]);
+
   const showToast = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
-    setTimeout(() => setNotification(null), 3800);
+    setTimeout(() => setNotification(null), 3500);
   };
 
   const handleSaveApiKeys = () => {
@@ -315,9 +287,9 @@ export default function LeadFinderApp() {
       localStorage.setItem('fonnte_api_token', fonnteToken);
       localStorage.setItem('lead_sender_name', senderName);
       localStorage.setItem('lead_sender_role', senderRole);
-      showToast('success', 'Pengaturan API & Profil berhasil disimpan!');
+      showToast('success', 'Pengaturan API & Profil berhasil disimpan.');
     } catch {
-      showToast('error', 'Gagal menyimpan ke penyimpanan lokal browser.');
+      showToast('error', 'Gagal menyimpan konfigurasi ke browser storage.');
     }
   };
 
@@ -371,7 +343,7 @@ export default function LeadFinderApp() {
   const executeSearch = async (targetQuery?: string) => {
     const activeQuery = (targetQuery !== undefined ? targetQuery : query).trim();
     if (!activeQuery) {
-      setErrorMessage('Silakan ketik kata kunci pencarian atau pilih preset kota/kategori.');
+      setErrorMessage('Ketik kata kunci pencarian atau pilih preset.');
       return;
     }
 
@@ -409,10 +381,10 @@ export default function LeadFinderApp() {
 
       setLeads(formatted);
       if (formatted.length === 0) {
-        setErrorMessage('Tidak ada tempat yang ditemukan untuk pencarian ini.');
+        setErrorMessage('Tidak ada data yang ditemukan untuk pencarian ini.');
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Terjadi kesalahan saat memproses data.';
+      const msg = err instanceof Error ? err.message : 'Terjadi kesalahan sistem.';
       setErrorMessage(msg);
     } finally {
       setIsLoading(false);
@@ -433,10 +405,13 @@ export default function LeadFinderApp() {
       if (filterValidWaOnly && (!item.phoneAnalysis.isValid || !item.phoneAnalysis.isMobile)) {
         return false;
       }
+      if (minRatingFilter > 0 && item.rating < minRatingFilter) {
+        return false;
+      }
       if (statusFilter !== 'all' && item.status !== statusFilter) return false;
       return true;
     });
-  }, [leads, filterNoWebsiteOnly, filterValidWaOnly, statusFilter]);
+  }, [leads, filterNoWebsiteOnly, filterValidWaOnly, minRatingFilter, statusFilter]);
 
   const stats = useMemo(() => {
     const total = leads.length;
@@ -470,7 +445,7 @@ export default function LeadFinderApp() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Gagal membuat pesan dengan Gemini AI.');
+        throw new Error(data.error || 'Gagal generate draf Gemini AI.');
       }
 
       const aiText = data.message;
@@ -480,9 +455,9 @@ export default function LeadFinderApp() {
 
       setPreviewModalLead({ ...lead, aiMessage: aiText });
       setEditedMessage(aiText);
-      showToast('success', `Gemini AI selesai membuat draf untuk ${lead.name}!`);
+      showToast('success', `Draf pesan untuk ${lead.name} selesai dibuat.`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Gagal menghubungi Gemini AI.';
+      const msg = err instanceof Error ? err.message : 'Koneksi ke Gemini AI gagal.';
       showToast('error', msg);
     } finally {
       setGeneratingAiId(null);
@@ -503,7 +478,7 @@ export default function LeadFinderApp() {
       await navigator.clipboard.writeText(message);
       setCopiedId(lead.id);
       setTimeout(() => setCopiedId(null), 2500);
-      showToast('success', `Pesan untuk ${lead.name} tersalin ke clipboard!`);
+      showToast('success', `Pesan untuk ${lead.name} tersalin ke clipboard.`);
     } catch {
       // Fallback
     }
@@ -530,6 +505,11 @@ export default function LeadFinderApp() {
   };
 
   const handleAutoSendWhatsApp = async (lead: LeadWithMeta, customText?: string) => {
+    if (dispatchCooldown > 0) {
+      showToast('error', `Anti-ban aktif. Mohon tunggu ${dispatchCooldown} detik sebelum kirim berikutnya.`);
+      return;
+    }
+
     if (!lead.phoneAnalysis.isValid || !lead.phoneAnalysis.isMobile) {
       showToast('error', 'Nomor telepon bukan seluler WhatsApp yang valid.');
       return;
@@ -564,13 +544,15 @@ export default function LeadFinderApp() {
         throw new Error(data.error || 'Gagal mengirim pesan via WhatsApp Gateway.');
       }
 
+      // Enforce 3-second anti-ban rate limiting
+      setDispatchCooldown(3);
       updateLeadStatus(lead.id, 'contacted');
-      showToast('success', `Berhasil terkirim ke ${lead.name} (${lead.phoneAnalysis.cleaned})!`);
+      showToast('success', `Pesan berhasil dikirim ke ${lead.name} (${lead.phoneAnalysis.cleaned}).`);
       if (previewModalLead?.id === lead.id) {
         setPreviewModalLead(null);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Gagal mengirim pesan WhatsApp.';
+      const msg = err instanceof Error ? err.message : 'Pengiriman WhatsApp gagal.';
       showToast('error', msg);
     } finally {
       setSendingId(null);
@@ -658,53 +640,42 @@ export default function LeadFinderApp() {
     URL.revokeObjectURL(url);
   };
 
-  // 1. Initial Page Loading Splash Screen (Corecraft/WorkNest style)
+  // 1. Initial Page Loading Splash Screen (Solid clean white baseline)
   if (isAppLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 select-none">
-        <div className="relative flex flex-col items-center gap-6 max-w-sm w-full text-center">
-          {/* Logo Animation */}
-          <div className="relative">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-xl shadow-emerald-500/30 animate-pulse">
-              <Sparkles className="h-8 w-8" />
-            </div>
-            <div className="absolute -inset-1 rounded-2xl bg-emerald-500/20 blur-md -z-10 animate-ping" />
+      <div className="min-h-screen bg-white text-slate-900 flex flex-col items-center justify-center p-6 select-none">
+        <div className="flex flex-col items-center gap-4 max-w-sm w-full text-center">
+          <div className="h-12 w-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+            <Target className="h-6 w-6" />
           </div>
-
-          <div className="space-y-1.5">
-            <h1 className="text-xl font-bold tracking-tight text-white">Lead Finder & Outreach</h1>
-            <p className="text-xs text-slate-400">Memuat workspace dan konfigurasi gateway...</p>
+          <div className="space-y-1">
+            <h1 className="text-base font-semibold tracking-tight text-slate-900">LeadFinder Pro</h1>
+            <p className="text-xs text-slate-500">Memuat workspace dan konfigurasi gateway...</p>
           </div>
-
-          {/* Progress Bar */}
-          <div className="w-48 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full animate-[progress_0.6s_ease-in-out_infinite]" />
+          <div className="w-40 h-1 bg-slate-100 rounded-full overflow-hidden mt-1">
+            <div className="h-full bg-emerald-600 rounded-full animate-pulse w-2/3" />
           </div>
-
-          <span className="text-[11px] font-mono text-slate-500 tracking-wider">
-            WORKNEST ENGINE v2.0
-          </span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row antialiased font-sans">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col md:flex-row antialiased font-sans">
       {/* Toast Notification */}
       {notification && (
-        <div className="fixed bottom-5 right-5 z-50 animate-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed bottom-5 right-5 z-50 animate-in slide-in-from-bottom-3 duration-150">
           <div
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-sm border text-xs font-medium ${
               notification.type === 'success'
-                ? 'bg-emerald-900/90 text-emerald-100 border-emerald-700/80 backdrop-blur-md'
-                : 'bg-red-900/90 text-red-100 border-red-700/80 backdrop-blur-md'
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                : 'bg-red-50 text-red-900 border-red-200'
             }`}
           >
             {notification.type === 'success' ? (
-              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
             ) : (
-              <XCircle className="h-5 w-5 text-red-400 shrink-0" />
+              <XCircle className="h-4 w-4 text-red-600 shrink-0" />
             )}
             <span>{notification.message}</span>
           </div>
@@ -713,55 +684,55 @@ export default function LeadFinderApp() {
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed md:sticky top-0 z-40 h-screen w-72 bg-slate-900/95 backdrop-blur-md border-r border-slate-800 flex flex-col justify-between transition-transform duration-200 ease-in-out ${
+        className={`fixed md:sticky top-0 z-40 h-screen w-64 bg-white border-r border-slate-200 flex flex-col justify-between transition-transform duration-150 ${
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        <div className="p-5 flex flex-col h-full">
+        <div className="p-4 flex flex-col h-full">
           {/* Brand Header */}
-          <div className="flex items-center justify-between pb-6 border-b border-slate-800/80">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold shadow-lg shadow-emerald-500/20">
-                <Sparkles className="h-5 w-5" />
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
+                <Target className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="font-bold text-sm tracking-tight text-white flex items-center gap-1.5">
-                  Lead Finder
-                  <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    Pro
+                <h2 className="font-semibold text-xs tracking-tight text-slate-900 flex items-center gap-1">
+                  LeadFinder Pro
+                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                    B2B
                   </span>
                 </h2>
-                <p className="text-[11px] text-slate-400">Outreach & WhatsApp CRM</p>
+                <p className="text-[10px] text-slate-500">Outreach Workspace</p>
               </div>
             </div>
 
             <button
               onClick={() => setMobileSidebarOpen(false)}
-              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              className="md:hidden p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
 
-          {/* Nav Items */}
-          <nav className="mt-6 space-y-1.5 flex-1">
+          {/* Navigation Links */}
+          <nav className="mt-4 space-y-1 flex-1">
             <button
               onClick={() => {
                 setActiveTab('search');
                 setMobileSidebarOpen(false);
               }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                 activeTab === 'search'
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  ? 'bg-slate-100 text-slate-900 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Search className="h-4 w-4" />
+              <div className="flex items-center gap-2.5">
+                <Search className="h-4 w-4 text-slate-500" />
                 <span>Cari Prospek</span>
               </div>
               {leads.length > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
+                <span className="text-[10px] font-mono tabular-nums px-1.5 py-0.2 rounded bg-slate-200 text-slate-700">
                   {leads.length}
                 </span>
               )}
@@ -772,18 +743,18 @@ export default function LeadFinderApp() {
                 setActiveTab('crm');
                 setMobileSidebarOpen(false);
               }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                 activeTab === 'crm'
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  ? 'bg-slate-100 text-slate-900 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Users className="h-4 w-4" />
+              <div className="flex items-center gap-2.5">
+                <Users className="h-4 w-4 text-slate-500" />
                 <span>Pipeline CRM</span>
               </div>
               {savedLeadsCrm.length > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400">
+                <span className="text-[10px] font-mono tabular-nums px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
                   {savedLeadsCrm.length}
                 </span>
               )}
@@ -794,15 +765,15 @@ export default function LeadFinderApp() {
                 setActiveTab('templates');
                 setMobileSidebarOpen(false);
               }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                 activeTab === 'templates'
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  ? 'bg-slate-100 text-slate-900 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Bot className="h-4 w-4" />
-                <span>AI Studio & Template</span>
+              <div className="flex items-center gap-2.5">
+                <Bot className="h-4 w-4 text-slate-500" />
+                <span>AI Copywriter</span>
               </div>
             </button>
 
@@ -811,14 +782,14 @@ export default function LeadFinderApp() {
                 setActiveTab('export');
                 setMobileSidebarOpen(false);
               }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                 activeTab === 'export'
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  ? 'bg-slate-100 text-slate-900 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <FileSpreadsheet className="h-4 w-4" />
+              <div className="flex items-center gap-2.5">
+                <FileSpreadsheet className="h-4 w-4 text-slate-500" />
                 <span>Ekspor Kontak</span>
               </div>
             </button>
@@ -828,33 +799,30 @@ export default function LeadFinderApp() {
                 setActiveTab('settings');
                 setMobileSidebarOpen(false);
               }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                 activeTab === 'settings'
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  ? 'bg-slate-100 text-slate-900 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Settings className="h-4 w-4" />
-                <span>Pengaturan Gateway</span>
+              <div className="flex items-center gap-2.5">
+                <Settings className="h-4 w-4 text-slate-500" />
+                <span>Pengaturan API</span>
               </div>
-              {(!serpApiKey && !fonnteToken) && (
-                <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
-              )}
             </button>
           </nav>
 
           {/* Active Profile Box */}
-          <div className="pt-4 border-t border-slate-800/80">
-            <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0">
+          <div className="pt-3 border-t border-slate-100">
+            <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-200 flex items-center gap-2.5">
+              <div className="h-7 w-7 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[11px] shrink-0 font-mono">
                 MK
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-white truncate">{senderName}</p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  <span className="text-[10px] text-slate-400 truncate">
+                <p className="text-xs font-semibold text-slate-900 truncate">{senderName}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <span className="text-[10px] text-slate-500 font-mono truncate">
                     +62 895-6294-60144
                   </span>
                 </div>
@@ -865,66 +833,104 @@ export default function LeadFinderApp() {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-slate-900/40">
-        {/* Top Header */}
-        <header className="sticky top-0 z-30 h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
+      <div className="flex-1 flex flex-col min-w-0 bg-white">
+        {/* Top Header & Telemetry Bar (F-03) */}
+        <header className="sticky top-0 z-30 h-14 bg-white/95 backdrop-blur-sm border-b border-slate-200 px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="md:hidden p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white"
+              className="md:hidden p-1.5 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-4 w-4" />
             </button>
             <div>
-              <h1 className="text-base font-bold text-white capitalize">
+              <h1 className="text-sm font-semibold text-slate-900">
                 {activeTab === 'search' && 'Cari Prospek Google Maps'}
-                {activeTab === 'crm' && 'Pipeline & Prospek Tersimpan'}
+                {activeTab === 'crm' && 'Pipeline CRM & Prospek Tersimpan'}
                 {activeTab === 'templates' && 'AI Copywriting Studio'}
-                {activeTab === 'export' && 'Ekspor Database Leads'}
-                {activeTab === 'settings' && 'Pengaturan API Gateway & Profil'}
+                {activeTab === 'export' && 'Ekspor Database Kontak'}
+                {activeTab === 'settings' && 'Pengaturan Gateway & Profil'}
               </h1>
-              <p className="text-xs text-slate-400 hidden sm:block">
-                Sistem otomatisasi penawaran website untuk UMKM & instansi lokal
-              </p>
             </div>
           </div>
 
-          {/* Gateway Status Badges */}
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-2 text-xs">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
-                <Search className="h-3 w-3 text-blue-400" />
+          {/* Real-time Telemetry Bar */}
+          <div className="flex items-center gap-2 text-xs">
+            <div className="hidden sm:flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-mono">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                 <span>SerpApi Maps</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
-                <Bot className="h-3 w-3 text-purple-400" />
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-mono">
+                <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
                 <span>Gemini AI</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/60 text-emerald-400 border border-emerald-800/80">
-                <Zap className="h-3 w-3 fill-emerald-400" />
-                <span>Fonnte WA Ready</span>
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-mono font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span>WA Gateway</span>
               </span>
             </div>
           </div>
         </header>
 
-        {/* Dynamic Main Body Content */}
+        {/* Workspace Canvas */}
         <main className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
           {/* TAB 1: SEARCH & PROSPECTING */}
           {activeTab === 'search' && (
             <>
-              {/* Search Card */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
-                {/* Presets */}
-                <div>
-                  <div className="flex items-center justify-between mb-2.5">
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Layers className="h-3.5 w-3.5 text-emerald-400" />
-                      Preset Cepat (Kategori & Kota Populer Jawa)
-                    </span>
-                    <span className="text-xs text-slate-500">Klik untuk langsung mencari</span>
-                  </div>
+              {/* Curated Opportunities Hub (F-02) */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Target className="h-3.5 w-3.5 text-emerald-600" />
+                    Rekomendasi Sektor Berpotensi Tinggi
+                  </span>
+                  <span className="text-[11px] text-slate-500">1-Klik Eksekusi</span>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {CURATED_RECOMMENDATIONS.map((rec) => (
+                    <div
+                      key={rec.id}
+                      className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between space-y-3 shadow-xs hover:border-slate-300 transition"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-xs font-semibold text-slate-900">{rec.title}</span>
+                          <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 font-mono">
+                            {rec.opportunityBadge}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                          <span className="inline-flex items-center gap-1 font-medium text-slate-700">
+                            <MapPin className="h-3 w-3 text-slate-400" />
+                            {rec.city}
+                          </span>
+                          <span>•</span>
+                          <span>{rec.categoryName}</span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed pt-0.5">
+                          {rec.description}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleApplyPreset(rec.query.replace(` di ${rec.city}`, ''), rec.city)}
+                        className="w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-50 hover:bg-emerald-600 text-slate-700 hover:text-white border border-slate-200 hover:border-emerald-600 font-medium text-xs transition cursor-pointer"
+                      >
+                        <span>Eksekusi Prospek {rec.city}</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Scraper & Control Bar (F-01) */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+                {/* Presets & Cities */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-medium text-slate-500">Preset Kategori & Kota Populer:</span>
                   <div className="flex flex-wrap gap-2 items-center">
                     <div className="relative inline-block">
                       <select
@@ -936,7 +942,7 @@ export default function LeadFinderApp() {
                           const q = val ? `${val} di ${selectedCity}` : `Bisnis di ${selectedCity}`;
                           setQuery(q);
                         }}
-                        className="appearance-none bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-medium py-2 pl-3.5 pr-8 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                        className="appearance-none bg-slate-50 text-slate-800 text-xs font-medium py-1.5 pl-3 pr-7 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                       >
                         {PRESET_CATEGORIES.map((cat, i) => (
                           <option key={i} value={cat.query}>
@@ -944,18 +950,18 @@ export default function LeadFinderApp() {
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 pointer-events-none text-slate-400" />
+                      <ChevronDown className="absolute right-2 top-2 h-3.5 w-3.5 pointer-events-none text-slate-400" />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1">
                       {POPULAR_CITIES.map((city) => (
                         <button
                           key={city}
                           onClick={() => handleApplyPreset(selectedCategoryPreset, city)}
-                          className={`px-3 py-1.5 text-xs font-medium rounded-xl transition cursor-pointer ${
+                          className={`px-2.5 py-1 text-xs font-medium rounded-lg transition cursor-pointer ${
                             selectedCity === city
-                              ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
-                              : 'bg-slate-800/80 text-slate-300 hover:bg-slate-750 border border-slate-750'
+                              ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                              : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
                           }`}
                         >
                           {city}
@@ -971,24 +977,24 @@ export default function LeadFinderApp() {
                     e.preventDefault();
                     executeSearch();
                   }}
-                  className="flex flex-col sm:flex-row gap-3"
+                  className="flex flex-col sm:flex-row gap-2.5"
                 >
                   <div className="relative flex-1">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                      <Search className="h-5 w-5" />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Search className="h-4 w-4" />
                     </div>
                     <input
                       type="text"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Contoh: Bimbel di Malang, Konveksi di Bandung, Florist di Solo..."
-                      className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-750 bg-slate-950/70 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                      placeholder="Contoh: Bimbel di Malang, Konveksi di Bandung, Klinik di Surabaya..."
+                      className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     {query && (
                       <button
                         type="button"
                         onClick={() => setQuery('')}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white cursor-pointer"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer text-xs"
                       >
                         &times;
                       </button>
@@ -998,54 +1004,34 @@ export default function LeadFinderApp() {
                   <button
                     type="submit"
                     disabled={isLoading || !query.trim()}
-                    className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition cursor-pointer shrink-0"
+                    className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-semibold text-xs transition cursor-pointer shrink-0 shadow-xs"
                   >
                     {isLoading ? (
                       <>
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        <span>Mencari Prospek...</span>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span>Mencari...</span>
                       </>
                     ) : (
                       <>
-                        <Search className="h-4 w-4" />
+                        <Search className="h-3.5 w-3.5" />
                         <span>Cari Prospek</span>
                       </>
                     )}
                   </button>
                 </form>
 
-                {/* Quick Recommendation Chips */}
-                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                  <span className="text-amber-400 font-bold flex items-center gap-1 shrink-0">
-                    <Flame className="h-3.5 w-3.5 text-amber-400" />
-                    Rekomendasi Cepat:
-                  </span>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {CURATED_RECOMMENDATIONS.slice(0, 5).map((rec) => (
-                      <button
-                        key={rec.id}
-                        onClick={() => handleApplyPreset(rec.query.replace(` di ${rec.city}`, ''), rec.city)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-emerald-400 border border-slate-750 transition cursor-pointer text-[11px] font-medium"
-                      >
-                        <span>{rec.title}</span>
-                        <span className="text-[10px] text-slate-500">({rec.city})</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Filter switches */}
-                <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-800 text-xs">
-                  <div className="flex flex-wrap items-center gap-5">
+                {/* Binary Switches & Rating Filters */}
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-100 text-xs">
+                  <div className="flex flex-wrap items-center gap-4">
                     <label className="inline-flex items-center gap-2 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={filterNoWebsiteOnly}
                         onChange={(e) => setFilterNoWebsiteOnly(e.target.checked)}
-                        className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                       />
-                      <span className="text-slate-300">
-                        Hanya yang <strong className="text-amber-400">belum punya website</strong>
+                      <span className="text-slate-700">
+                        Hanya yang <strong className="text-amber-800">belum punya website</strong>
                       </span>
                     </label>
 
@@ -1054,79 +1040,97 @@ export default function LeadFinderApp() {
                         type="checkbox"
                         checked={filterValidWaOnly}
                         onChange={(e) => setFilterValidWaOnly(e.target.checked)}
-                        className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                       />
-                      <span className="text-slate-300">
-                        Hanya <strong className="text-emerald-400">WhatsApp valid</strong> (seluler)
+                      <span className="text-slate-700">
+                        Hanya <strong className="text-emerald-700">WhatsApp valid</strong> (seluler)
                       </span>
                     </label>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400">Status:</span>
-                    <select
-                      aria-label="Filter status"
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value as 'all' | OutreachStatus)}
-                      className="bg-slate-800 text-slate-300 text-xs font-medium py-1 px-2.5 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    >
-                      <option value="all">Semua Status</option>
-                      <option value="new">Baru (Belum Dikontak)</option>
-                      <option value="contacted">Sudah Dikontak</option>
-                      <option value="followup">Perlu Follow-up</option>
-                      <option value="closed">Deal / Selesai</option>
-                      <option value="rejected">Ditolak</option>
-                    </select>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500">Min Rating:</span>
+                      <select
+                        aria-label="Filter Rating Minimum"
+                        value={minRatingFilter}
+                        onChange={(e) => setMinRatingFilter(Number(e.target.value))}
+                        className="bg-slate-50 text-slate-800 text-xs font-medium py-1 px-2 rounded-md border border-slate-200 focus:outline-none"
+                      >
+                        <option value={0}>Semua</option>
+                        <option value={4.0}>4.0+ Stars</option>
+                        <option value={4.5}>4.5+ Stars</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500">Status:</span>
+                      <select
+                        aria-label="Filter status"
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value as 'all' | OutreachStatus)}
+                        className="bg-slate-50 text-slate-800 text-xs font-medium py-1 px-2 rounded-md border border-slate-200 focus:outline-none"
+                      >
+                        <option value="all">Semua Status</option>
+                        <option value="new">Baru</option>
+                        <option value="contacted">Sudah Dikontak</option>
+                        <option value="followup">Perlu Follow-up</option>
+                        <option value="closed">Deal</option>
+                        <option value="rejected">Ditolak</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Error Alert */}
               {errorMessage && (
-                <div className="p-4 rounded-xl bg-red-950/60 border border-red-800 text-red-200 text-sm flex items-start gap-3">
-                  <XCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-red-900 text-xs flex items-start gap-2.5">
+                  <XCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold">Perhatian</p>
-                    <p className="text-xs text-red-300 mt-0.5">{errorMessage}</p>
+                    <p className="text-red-700 mt-0.5">{errorMessage}</p>
                   </div>
                 </div>
               )}
 
-              {/* Stats Summary Bar */}
+              {/* Metric Aggregators (F-04) */}
               {leads.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
-                    <span className="text-xs text-slate-400 font-medium">Total Ditemukan</span>
-                    <p className="text-2xl font-extrabold text-white mt-1">{stats.total}</p>
-                    <span className="text-[11px] text-slate-500">Dari Google Maps</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+                    <span className="text-xs text-slate-500 font-medium">Total Ditemukan</span>
+                    <p className="text-2xl font-bold text-slate-900 mt-1 font-mono tabular-nums">{stats.total}</p>
+                    <span className="text-[11px] text-slate-400">Hasil Google Maps</span>
                   </div>
 
-                  <div className="bg-slate-900 border border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent rounded-xl p-4 shadow-sm">
-                    <span className="text-xs text-amber-400 font-medium">Tanpa Website Resmi</span>
-                    <p className="text-2xl font-extrabold text-amber-300 mt-1">{stats.noWebsite}</p>
-                    <span className="text-[11px] text-amber-400/80 font-medium">Target Utama Outreach</span>
+                  <div className="bg-white border border-amber-200 rounded-xl p-4 shadow-xs bg-amber-50/20">
+                    <span className="text-xs text-amber-800 font-medium">Tanpa Website Resmi</span>
+                    <p className="text-2xl font-bold text-amber-900 mt-1 font-mono tabular-nums">{stats.noWebsite}</p>
+                    <span className="text-[11px] text-amber-700 font-medium">Target Utama Outreach</span>
                   </div>
 
-                  <div className="bg-slate-900 border border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 to-transparent rounded-xl p-4 shadow-sm">
-                    <span className="text-xs text-emerald-400 font-medium">WhatsApp Seluler Valid</span>
-                    <p className="text-2xl font-extrabold text-emerald-300 mt-1">{stats.validWa}</p>
-                    <span className="text-[11px] text-emerald-400/80 font-medium">Siap Direct Send</span>
+                  <div className="bg-white border border-emerald-200 rounded-xl p-4 shadow-xs bg-emerald-50/20">
+                    <span className="text-xs text-emerald-800 font-medium">WhatsApp Seluler Valid</span>
+                    <p className="text-2xl font-bold text-emerald-900 mt-1 font-mono tabular-nums">{stats.validWa}</p>
+                    <span className="text-[11px] text-emerald-700 font-medium">Siap Direct Chat</span>
                   </div>
 
-                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
-                    <span className="text-xs text-slate-400 font-medium">Sudah Dikontak</span>
-                    <p className="text-2xl font-extrabold text-white mt-1">{stats.contacted}</p>
-                    <span className="text-[11px] text-slate-500">Tersimpan di Pipeline</span>
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+                    <span className="text-xs text-slate-500 font-medium">Sudah Dikontak</span>
+                    <p className="text-2xl font-bold text-slate-900 mt-1 font-mono tabular-nums">{stats.contacted}</p>
+                    <span className="text-[11px] text-slate-400">Tersimpan di Pipeline</span>
                   </div>
                 </div>
               )}
 
               {/* Action Toolbar */}
               {leads.length > 0 && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-white">Hasil Prospek Bisnis</h3>
-                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Daftar Prospek
+                    </h3>
+                    <span className="px-2 py-0.5 rounded text-[11px] font-mono tabular-nums bg-slate-100 text-slate-700 border border-slate-200 font-medium">
                       {filteredLeads.length} tempat
                     </span>
                   </div>
@@ -1134,14 +1138,14 @@ export default function LeadFinderApp() {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={handleDownloadWaList}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-xs transition cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition cursor-pointer"
                     >
                       <Download className="h-3.5 w-3.5" />
                       <span>Download List WA (.txt)</span>
                     </button>
                     <button
                       onClick={handleDownloadCsv}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-medium transition cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition cursor-pointer"
                     >
                       <FileSpreadsheet className="h-3.5 w-3.5 text-slate-400" />
                       <span>Export CSV</span>
@@ -1150,9 +1154,9 @@ export default function LeadFinderApp() {
                 </div>
               )}
 
-              {/* Lead Cards */}
+              {/* Dense Prospect Cards (F-05) */}
               {filteredLeads.length > 0 ? (
-                <div className="space-y-3.5">
+                <div className="space-y-3">
                   {filteredLeads.map((lead) => {
                     const phone = lead.phoneAnalysis;
                     const hasValidWa = phone.isValid && phone.isMobile;
@@ -1162,22 +1166,20 @@ export default function LeadFinderApp() {
                     return (
                       <div
                         key={lead.id}
-                        className={`bg-slate-900 rounded-2xl border transition hover:border-slate-700 p-5 ${
-                          !lead.hasWebsite
-                            ? 'border-amber-500/30 bg-gradient-to-r from-amber-500/[0.03] via-slate-900 to-slate-900'
-                            : 'border-slate-800'
+                        className={`bg-white rounded-xl border p-4 transition shadow-xs hover:border-slate-300 ${
+                          !lead.hasWebsite ? 'border-amber-200/80' : 'border-slate-200'
                         }`}
                       >
-                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                           {/* Info Column */}
-                          <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex-1 min-w-0 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="text-base font-bold text-white truncate">
+                              <h4 className="text-sm font-bold text-slate-900 truncate">
                                 {lead.name}
                               </h4>
 
                               {!lead.hasWebsite ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
                                   <Globe className="h-3 w-3" />
                                   Tanpa Website
                                 </span>
@@ -1186,7 +1188,7 @@ export default function LeadFinderApp() {
                                   href={lead.websiteUri || '#'}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:underline border border-emerald-500/30"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-800 hover:underline border border-emerald-200"
                                 >
                                   <Globe2 className="h-3 w-3" />
                                   Punya Website
@@ -1195,48 +1197,48 @@ export default function LeadFinderApp() {
                               )}
 
                               {lead.rating > 0 && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
-                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-50 text-slate-700 border border-slate-200 font-mono tabular-nums">
+                                  <Star className="h-3 w-3 fill-amber-400 text-amber-500" />
                                   {lead.rating} ({lead.userRatingCount})
                                 </span>
                               )}
 
                               {lead.aiMessage && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
                                   <Bot className="h-3 w-3" /> AI Customized
                                 </span>
                               )}
                             </div>
 
-                            <p className="text-xs text-slate-400 flex items-start gap-1.5 leading-relaxed">
-                              <MapPin className="h-3.5 w-3.5 text-slate-500 shrink-0 mt-0.5" />
+                            <p className="text-xs text-slate-500 flex items-start gap-1 leading-relaxed">
+                              <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
                               <span>{lead.formattedAddress}</span>
                             </p>
 
-                            <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
-                              <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-slate-300 font-mono">
+                            <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+                              <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 text-slate-700 font-mono text-[11px]">
                                 {phone.isMobile ? (
-                                  <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                                  <Phone className="h-3 w-3 text-emerald-600" />
                                 ) : (
-                                  <PhoneCall className="h-3.5 w-3.5 text-slate-500" />
+                                  <PhoneCall className="h-3 w-3 text-slate-400" />
                                 )}
                                 <span>{lead.nationalPhoneNumber || 'Tidak ada nomor'}</span>
                               </div>
 
                               {phone.isMobile ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
                                   WA Valid ({phone.cleaned})
                                 </span>
                               ) : phone.type === 'landline' ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
                                   Telepon Kantor (PSTN)
                                 </span>
                               ) : null}
                             </div>
                           </div>
 
-                          {/* Controls & Actions */}
-                          <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-3 shrink-0">
+                          {/* Controls & Actions Column */}
+                          <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-2.5 shrink-0">
                             <div className="flex flex-wrap items-center gap-2">
                               {/* Outreach Category */}
                               <select
@@ -1245,51 +1247,52 @@ export default function LeadFinderApp() {
                                 onChange={(e) =>
                                   updateLeadCategory(lead.id, e.target.value as OutreachCategory)
                                 }
-                                className="bg-slate-800 text-slate-300 text-xs font-medium py-1.5 px-2 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                                className="bg-slate-50 text-slate-700 text-xs font-medium py-1 px-2 rounded-md border border-slate-200 focus:outline-none cursor-pointer"
                               >
                                 <option value="umkm">UMKM (Katalog)</option>
                                 <option value="jasa">Jasa/Instansi (Profil)</option>
                                 <option value="general">Umum</option>
                               </select>
 
-                              {/* Pipeline status */}
+                              {/* Pipeline status (F-08) */}
                               <select
                                 aria-label="Status Pipeline"
                                 value={lead.status}
                                 onChange={(e) =>
                                   updateLeadStatus(lead.id, e.target.value as OutreachStatus)
                                 }
-                                className={`text-xs font-semibold py-1.5 px-2.5 rounded-lg border focus:outline-none cursor-pointer ${
-                                  STATUS_CONFIG[lead.status]?.bg || 'bg-slate-800'
-                                } ${STATUS_CONFIG[lead.status]?.border || 'border-slate-700'}`}
+                                className={`text-xs font-semibold py-1 px-2 rounded-md border focus:outline-none cursor-pointer ${
+                                  STATUS_CONFIG[lead.status]?.bg || 'bg-slate-50'
+                                } ${STATUS_CONFIG[lead.status]?.border || 'border-slate-200'}`}
                               >
-                                <option value="new">Baru (New)</option>
+                                <option value="new">Baru</option>
                                 <option value="contacted">Sudah Dikontak</option>
-                                <option value="followup">Perlu Follow-up</option>
-                                <option value="closed">Deal / Selesai</option>
-                                <option value="rejected">Tidak Tertarik</option>
+                                <option value="followup">Follow-up</option>
+                                <option value="closed">Deal</option>
+                                <option value="rejected">Ditolak</option>
                               </select>
                             </div>
 
                             {/* Buttons */}
-                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                            <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto justify-end">
+                              {/* Gemini AI Trigger (F-06) */}
                               <button
                                 onClick={() => handleGenerateGeminiPitch(lead)}
                                 disabled={isGeneratingAi}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-xs font-semibold transition cursor-pointer"
-                                title="Generate copywriting via Gemini AI"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold transition cursor-pointer"
+                                title="Generate pitch via Gemini AI"
                               >
                                 {isGeneratingAi ? (
-                                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-purple-400" />
+                                  <RefreshCw className="h-3 w-3 animate-spin text-purple-600" />
                                 ) : (
-                                  <Wand2 className="h-3.5 w-3.5 text-purple-400" />
+                                  <Bot className="h-3 w-3 text-purple-600" />
                                 )}
                                 <span>Gemini AI</span>
                               </button>
 
                               <button
                                 onClick={() => handleOpenPreview(lead)}
-                                className="p-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-300 transition cursor-pointer"
+                                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition cursor-pointer"
                                 title="Preview Draf Pesan"
                               >
                                 <Eye className="h-3.5 w-3.5" />
@@ -1297,16 +1300,16 @@ export default function LeadFinderApp() {
 
                               <button
                                 onClick={() => handleCopyMessage(lead)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-medium transition cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition cursor-pointer"
                               >
                                 {copiedId === lead.id ? (
                                   <>
-                                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                                    <span className="text-emerald-400 font-bold">Tersalin!</span>
+                                    <Check className="h-3 w-3 text-emerald-600" />
+                                    <span className="text-emerald-700 font-bold">Tersalin</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Copy className="h-3.5 w-3.5" />
+                                    <Copy className="h-3 w-3 text-slate-500" />
                                     <span>Salin</span>
                                   </>
                                 )}
@@ -1315,38 +1318,44 @@ export default function LeadFinderApp() {
                               <button
                                 onClick={() => handleOpenWhatsAppManual(lead)}
                                 disabled={!hasValidWa}
-                                className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium transition cursor-pointer ${
+                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition cursor-pointer ${
                                   hasValidWa
-                                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
-                                    : 'border-slate-800 text-slate-600 bg-slate-950 cursor-not-allowed'
+                                    ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                    : 'border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed'
                                 }`}
                               >
-                                <Send className="h-3.5 w-3.5" />
+                                <Send className="h-3 w-3 text-slate-500" />
                                 <span>Web WA</span>
                               </button>
 
+                              {/* Fonnte WhatsApp Dispatch (F-07) with anti-ban throttle */}
                               <button
                                 onClick={() => handleAutoSendWhatsApp(lead)}
-                                disabled={!hasValidWa || isSendingThis}
-                                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                                  hasValidWa && !isSendingThis
-                                    ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-500/20'
-                                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                disabled={!hasValidWa || isSendingThis || dispatchCooldown > 0}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shadow-xs ${
+                                  hasValidWa && !isSendingThis && dispatchCooldown === 0
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                                 }`}
                               >
                                 {isSendingThis ? (
                                   <>
-                                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                    <RefreshCw className="h-3 w-3 animate-spin" />
                                     <span>Mengirim...</span>
+                                  </>
+                                ) : dispatchCooldown > 0 ? (
+                                  <>
+                                    <Clock className="h-3 w-3" />
+                                    <span className="font-mono">{dispatchCooldown}s</span>
                                   </>
                                 ) : lead.status === 'contacted' ? (
                                   <>
-                                    <CheckCheck className="h-3.5 w-3.5" />
+                                    <CheckCheck className="h-3 w-3" />
                                     <span>Kirim Lagi</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Zap className="h-3.5 w-3.5 fill-current" />
+                                    <Zap className="h-3 w-3 fill-current" />
                                     <span>Kirim Otomatis</span>
                                   </>
                                 )}
@@ -1359,160 +1368,104 @@ export default function LeadFinderApp() {
                   })}
                 </div>
               ) : leads.length > 0 ? (
-                <div className="text-center py-12 bg-slate-900 rounded-2xl border border-slate-800 p-8">
-                  <Filter className="h-10 w-10 text-slate-600 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-slate-300">
-                    Tidak ada prospek yang cocok dengan filter saat ini.
+                <div className="text-center py-12 bg-white rounded-xl border border-slate-200 p-8">
+                  <Filter className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs font-medium text-slate-600">
+                    Tidak ada prospek yang cocok dengan filter aktif.
                   </p>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2">
-                    <div>
-                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Flame className="h-4 w-4 text-amber-400" />
-                        Rekomendasi Sektor Siap Eksekusi (High Closing Opportunity)
-                      </h3>
-                      <p className="text-xs text-slate-400">
-                        Pilih target sektor di bawah ini untuk mencari data prospek secara instan tanpa perlu mengetik manual.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {CURATED_RECOMMENDATIONS.map((rec) => (
-                      <div
-                        key={rec.id}
-                        className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between space-y-4 transition shadow-sm hover:shadow-md"
-                      >
-                        <div className="space-y-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-white">{rec.title}</span>
-                            </div>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 whitespace-nowrap">
-                              {rec.opportunityBadge}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-300 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-750">
-                              <MapPin className="h-3 w-3 text-emerald-400" />
-                              {rec.city}
-                            </span>
-                            <span className="text-[11px] text-slate-400 font-medium">
-                              {rec.categoryName}
-                            </span>
-                          </div>
-
-                          <p className="text-xs text-slate-400 leading-relaxed">
-                            {rec.description}
-                          </p>
-                        </div>
-
-                        <button
-                          onClick={() => handleApplyPreset(rec.query.replace(` di ${rec.city}`, ''), rec.city)}
-                          className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/30 hover:border-emerald-500 font-bold text-xs transition cursor-pointer"
-                        >
-                          <Rocket className="h-3.5 w-3.5" />
-                          <span>Eksekusi Prospek {rec.city}</span>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              ) : null}
             </>
           )}
 
           {/* TAB 2: PIPELINE CRM */}
           {activeTab === 'crm' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-4">
                 <div>
-                  <h3 className="text-base font-bold text-white">Pipeline CRM Outreach</h3>
-                  <p className="text-xs text-slate-400">
+                  <h3 className="text-sm font-bold text-slate-900">Pipeline CRM Outreach</h3>
+                  <p className="text-xs text-slate-500">
                     Kelola status kontak seluruh prospek bisnis yang telah ditemukan.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleDownloadWaList}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition"
                   >
                     <Download className="h-3.5 w-3.5" />
                     <span>Download WA List</span>
                   </button>
                   <button
                     onClick={handleDownloadCsv}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-medium transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition"
                   >
-                    <FileSpreadsheet className="h-3.5 w-3.5" />
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-slate-400" />
                     <span>Export CSV</span>
                   </button>
                 </div>
               </div>
 
               {savedLeadsCrm.length === 0 ? (
-                <div className="text-center py-16 bg-slate-900 rounded-2xl border border-slate-800 p-8">
-                  <Users className="h-10 w-10 text-slate-600 mx-auto mb-3" />
-                  <p className="text-sm font-semibold text-slate-300">Belum ada prospek di Pipeline CRM</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Cari prospek di tab &quot;Cari Prospek&quot; untuk otomatis menambahkan ke pipeline.
+                <div className="text-center py-12 bg-white rounded-xl border border-slate-200 p-8">
+                  <Users className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs font-semibold text-slate-700">Belum ada data di Pipeline CRM</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Lakukan pencarian prospek untuk otomatis mencatat data ke CRM.
                   </p>
                 </div>
               ) : (
-                <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[10px] font-bold">
+                    <table className="w-full text-left text-xs text-slate-700">
+                      <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase text-[10px] font-bold">
                         <tr>
-                          <th className="px-4 py-3.5">Nama Bisnis</th>
-                          <th className="px-4 py-3.5">Nomor WhatsApp</th>
-                          <th className="px-4 py-3.5">Website</th>
-                          <th className="px-4 py-3.5">Rating</th>
-                          <th className="px-4 py-3.5">Status Pipeline</th>
-                          <th className="px-4 py-3.5 text-right">Aksi</th>
+                          <th className="px-4 py-3">Nama Bisnis</th>
+                          <th className="px-4 py-3">Nomor WhatsApp</th>
+                          <th className="px-4 py-3">Website</th>
+                          <th className="px-4 py-3">Rating</th>
+                          <th className="px-4 py-3">Status Pipeline</th>
+                          <th className="px-4 py-3 text-right">Aksi</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800">
+                      <tbody className="divide-y divide-slate-100">
                         {savedLeadsCrm.map((lead) => (
-                          <tr key={lead.id} className="hover:bg-slate-800/40 transition">
-                            <td className="px-4 py-3 font-semibold text-white">
+                          <tr key={lead.id} className="hover:bg-slate-50/70 transition">
+                            <td className="px-4 py-2.5 font-semibold text-slate-900">
                               <div>{lead.name}</div>
-                              <div className="text-[11px] text-slate-500 font-normal truncate max-w-xs">
+                              <div className="text-[11px] text-slate-400 font-normal truncate max-w-xs">
                                 {lead.formattedAddress}
                               </div>
                             </td>
-                            <td className="px-4 py-3 font-mono">
+                            <td className="px-4 py-2.5 font-mono text-[11px]">
                               {lead.phoneAnalysis.cleaned ? (
-                                <span className="text-emerald-400 font-medium">
+                                <span className="text-emerald-700 font-medium">
                                   {lead.phoneAnalysis.cleaned}
                                 </span>
                               ) : (
-                                <span className="text-slate-500">-</span>
+                                <span className="text-slate-400">-</span>
                               )}
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-2.5">
                               {lead.hasWebsite ? (
-                                <span className="text-emerald-400 font-medium">Punya</span>
+                                <span className="text-emerald-700 font-medium text-[11px]">Punya</span>
                               ) : (
-                                <span className="text-amber-400 font-medium">Tanpa Website</span>
+                                <span className="text-amber-800 font-medium text-[11px]">Tanpa Website</span>
                               )}
                             </td>
-                            <td className="px-4 py-3">
-                              {lead.rating > 0 ? `⭐ ${lead.rating}` : '-'}
+                            <td className="px-4 py-2.5 font-mono tabular-nums text-[11px]">
+                              {lead.rating > 0 ? `${lead.rating} ★` : '-'}
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-2.5">
                               <select
                                 aria-label="Status Pipeline Lead"
                                 value={lead.status}
                                 onChange={(e) =>
                                   updateLeadStatus(lead.id, e.target.value as OutreachStatus)
                                 }
-                                className={`text-xs font-semibold py-1 px-2 rounded-md border focus:outline-none cursor-pointer ${
-                                  STATUS_CONFIG[lead.status]?.bg || 'bg-slate-800'
-                                } ${STATUS_CONFIG[lead.status]?.border || 'border-slate-700'}`}
+                                className={`text-[11px] font-semibold py-1 px-2 rounded border focus:outline-none cursor-pointer ${
+                                  STATUS_CONFIG[lead.status]?.bg || 'bg-slate-50'
+                                } ${STATUS_CONFIG[lead.status]?.border || 'border-slate-200'}`}
                               >
                                 <option value="new">Baru</option>
                                 <option value="contacted">Sudah Dikontak</option>
@@ -1521,11 +1474,11 @@ export default function LeadFinderApp() {
                                 <option value="rejected">Ditolak</option>
                               </select>
                             </td>
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-4 py-2.5 text-right">
                               <button
                                 onClick={() => handleAutoSendWhatsApp(lead)}
-                                disabled={!lead.phoneAnalysis.isMobile}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[11px]"
+                                disabled={!lead.phoneAnalysis.isMobile || dispatchCooldown > 0}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px]"
                               >
                                 <Zap className="h-3 w-3 fill-current" />
                                 <span>Kirim WA</span>
@@ -1545,12 +1498,14 @@ export default function LeadFinderApp() {
           {activeTab === 'templates' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-4">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3 shadow-xs">
                   <div className="flex items-center gap-2">
-                    <Bot className="h-5 w-5 text-purple-400" />
-                    <h3 className="font-bold text-sm text-white">Preset Template Outreach Otomatis</h3>
+                    <Bot className="h-4 w-4 text-purple-600" />
+                    <h3 className="font-bold text-xs text-slate-900 uppercase tracking-wider">
+                      Preset Template Outreach Otomatis
+                    </h3>
                   </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-600 leading-relaxed">
                     Template berikut dibuat secara adaptif sesuai kategori target prospek untuk menghasilkan tingkat konversi chat tertinggi.
                   </p>
 
@@ -1558,17 +1513,17 @@ export default function LeadFinderApp() {
                     {OUTREACH_CATEGORIES.map((cat) => (
                       <div
                         key={cat.id}
-                        className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2"
+                        className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-emerald-400">{cat.label}</span>
-                          <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
+                          <span className="font-semibold text-xs text-slate-900">{cat.label}</span>
+                          <span className="text-[10px] bg-white text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-mono">
                             {cat.badge}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400">{cat.description}</p>
-                        <div className="pt-2">
-                          <pre className="bg-slate-900 p-3 rounded-lg text-[11px] text-slate-300 font-sans whitespace-pre-wrap leading-relaxed border border-slate-800">
+                        <p className="text-xs text-slate-500">{cat.description}</p>
+                        <div className="pt-1">
+                          <pre className="bg-white p-3 rounded text-[11px] text-slate-800 font-sans whitespace-pre-wrap leading-relaxed border border-slate-200">
                             {generateOutreachMessage({
                               businessName: 'Contoh Bisnis',
                               category: cat.id,
@@ -1584,19 +1539,16 @@ export default function LeadFinderApp() {
               </div>
 
               {/* Phone Mockup Preview */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col items-center">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col items-center shadow-xs">
                 <div className="flex items-center gap-2 mb-4 self-start">
-                  <Smartphone className="h-4 w-4 text-emerald-400" />
-                  <span className="text-xs font-bold text-white">Live Mockup Chat WA</span>
+                  <Smartphone className="h-4 w-4 text-emerald-600" />
+                  <span className="text-xs font-bold text-slate-900">Live Mockup WhatsApp</span>
                 </div>
 
-                {/* Smartphone frame */}
-                <div className="w-full max-w-[280px] bg-slate-950 rounded-3xl p-3 border-4 border-slate-800 shadow-2xl">
-                  {/* Notch */}
-                  <div className="h-4 w-24 bg-slate-800 rounded-full mx-auto mb-3" />
-                  {/* WhatsApp header */}
-                  <div className="bg-emerald-800 text-white p-2 rounded-t-xl flex items-center gap-2">
-                    <div className="h-6 w-6 rounded-full bg-emerald-600 flex items-center justify-center text-[10px] font-bold">
+                <div className="w-full max-w-[270px] bg-slate-900 rounded-3xl p-3 border-4 border-slate-800 shadow-xl">
+                  <div className="h-3.5 w-20 bg-slate-800 rounded-full mx-auto mb-2.5" />
+                  <div className="bg-emerald-700 text-white p-2 rounded-t-lg flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full bg-emerald-600 flex items-center justify-center text-[10px] font-bold font-mono">
                       MK
                     </div>
                     <div className="min-w-0 flex-1">
@@ -1604,12 +1556,11 @@ export default function LeadFinderApp() {
                       <p className="text-[9px] text-emerald-200">Online</p>
                     </div>
                   </div>
-                  {/* Chat bubble */}
-                  <div className="bg-[#0b141a] p-3 rounded-b-xl min-h-[320px] text-[10px] text-slate-100 flex flex-col justify-end">
-                    <div className="bg-[#005c4b] p-2.5 rounded-lg rounded-tr-none shadow-xs leading-relaxed space-y-1">
+                  <div className="bg-[#0b141a] p-2.5 rounded-b-lg min-h-[300px] text-[10px] text-slate-100 flex flex-col justify-end">
+                    <div className="bg-[#005c4b] p-2 rounded-lg rounded-tr-none shadow-xs leading-relaxed space-y-1">
                       <p>Halo Kak/Admin Bisnis, salam kenal! Saya {senderName} ({senderRole}).</p>
-                      <p>Saya ingin menawarkan pembuatan website katalog/landing page resmi modern...</p>
-                      <span className="text-[8px] text-emerald-200/60 block text-right">09:42 ✓✓</span>
+                      <p>Saya ingin menawarkan pembuatan website katalog resmi modern untuk bisnis Anda...</p>
+                      <span className="text-[8px] text-emerald-200/60 block text-right font-mono">09:42 ✓✓</span>
                     </div>
                   </div>
                 </div>
@@ -1619,46 +1570,46 @@ export default function LeadFinderApp() {
 
           {/* TAB 4: EXPORT DATA */}
           {activeTab === 'export' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-2xl space-y-5">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 max-w-2xl space-y-4 shadow-xs">
               <div>
-                <h3 className="text-base font-bold text-white">Download & Ekspor Kontak</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Unduh data nomor telepon WhatsApp untuk diimpor ke aplikasi broadcast atau tools otomasi.
+                <h3 className="text-sm font-bold text-slate-900">Download & Ekspor Kontak</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Unduh data nomor telepon WhatsApp untuk broadcast atau otomasi.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
-                  <div className="h-9 w-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-                    <Download className="h-5 w-5" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2.5">
+                  <div className="h-8 w-8 rounded bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                    <Download className="h-4 w-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-white">Format TXT (WhatsApp Saja)</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Satu baris satu nomor format 628... Cocok untuk WA Blast tool.
+                    <h4 className="font-semibold text-xs text-slate-900">Format TXT (WhatsApp Saja)</h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Satu baris satu nomor format 628... Cocok untuk WA broadcast tools.
                     </p>
                   </div>
                   <button
                     onClick={handleDownloadWaList}
-                    className="w-full py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition"
+                    className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition cursor-pointer"
                   >
                     Unduh File TXT
                   </button>
                 </div>
 
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
-                  <div className="h-9 w-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
-                    <FileSpreadsheet className="h-5 w-5" />
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2.5">
+                  <div className="h-8 w-8 rounded bg-blue-100 text-blue-800 flex items-center justify-center">
+                    <FileSpreadsheet className="h-4 w-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-white">Format CSV Spreadsheet</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Berisi nama bisnis, alamat lengkap, rating, dan status website.
+                    <h4 className="font-semibold text-xs text-slate-900">Format CSV Spreadsheet</h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Berisi nama bisnis, nomor WA, alamat lengkap, rating, dan status website.
                     </p>
                   </div>
                   <button
                     onClick={handleDownloadCsv}
-                    className="w-full py-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold text-xs transition"
+                    className="w-full py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-800 font-semibold text-xs transition cursor-pointer"
                   >
                     Unduh File CSV
                   </button>
@@ -1669,19 +1620,19 @@ export default function LeadFinderApp() {
 
           {/* TAB 5: SETTINGS */}
           {activeTab === 'settings' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-3xl space-y-6">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 max-w-2xl space-y-5 shadow-xs">
               <div>
-                <h3 className="text-base font-bold text-white">Konfigurasi API & Profil Pengirim</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Kelola API Key SerpApi, Gemini AI, Fonnte Gateway, serta nama identitas pengirim pesan.
+                <h3 className="text-sm font-bold text-slate-900">Konfigurasi API & Profil Pengirim</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Kelola API Key SerpApi, Gemini AI, Fonnte Gateway, dan identitas pengirim outreach.
                 </p>
               </div>
 
-              <div className="space-y-4 pt-2">
+              <div className="space-y-3.5 pt-1">
                 {/* SerpApi Key */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-                    <Search className="h-4 w-4 text-blue-400" />
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                    <Search className="h-3.5 w-3.5 text-blue-600" />
                     <span>SerpApi (Google Maps Engine) API Key</span>
                   </label>
                   <input
@@ -1689,17 +1640,17 @@ export default function LeadFinderApp() {
                     value={serpApiKey}
                     onChange={(e) => setSerpApiKey(e.target.value)}
                     placeholder="2df4f9a3c5545618d345c19f..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-750 bg-slate-950 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                   />
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-400">
                     Kunci pencarian Google Maps dari serpapi.com (Free Tier tanpa kartu kredit).
                   </p>
                 </div>
 
                 {/* Gemini AI Key */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-                    <Bot className="h-4 w-4 text-purple-400" />
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                    <Bot className="h-3.5 w-3.5 text-purple-600" />
                     <span>Google Gemini AI API Key</span>
                   </label>
                   <input
@@ -1707,17 +1658,17 @@ export default function LeadFinderApp() {
                     value={geminiApiKey}
                     onChange={(e) => setGeminiApiKey(e.target.value)}
                     placeholder="AQ.Ab8RN6IZE9d2P..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-750 bg-slate-950 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
                   />
-                  <p className="text-[11px] text-slate-500">
-                    Membuat draf pesan WhatsApp personalisasi unik secara instan.
+                  <p className="text-[11px] text-slate-400">
+                    Membuat draf pesan WhatsApp personalisasi unik secara otomatis.
                   </p>
                 </div>
 
                 {/* Fonnte Token */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-emerald-400" />
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                    <Zap className="h-3.5 w-3.5 text-emerald-600" />
                     <span>Fonnte WhatsApp Token (Device: 0895629460144)</span>
                   </label>
                   <input
@@ -1725,43 +1676,43 @@ export default function LeadFinderApp() {
                     value={fonnteToken}
                     onChange={(e) => setFonnteToken(e.target.value)}
                     placeholder="hAEbTy6zmgvnsKrE..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-750 bg-slate-950 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
                   />
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-400">
                     Token perangkat Fonnte untuk mengirim pesan langsung dari nomor WhatsApp Anda.
                   </p>
                 </div>
 
                 {/* Sender Profile */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Nama Pengirim</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-800">Nama Pengirim</label>
                     <input
                       type="text"
                       value={senderName}
                       onChange={(e) => setSenderName(e.target.value)}
                       placeholder="Mohammad Kevin"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-750 bg-slate-950 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Profesi / Role</label>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-800">Profesi / Role</label>
                     <input
                       type="text"
                       value={senderRole}
                       onChange={(e) => setSenderRole(e.target.value)}
                       placeholder="freelance web developer"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-750 bg-slate-950 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>
                 </div>
 
-                <div className="pt-3">
+                <div className="pt-2">
                   <button
                     onClick={handleSaveApiKeys}
-                    className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer"
+                    className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition cursor-pointer"
                   >
-                    Simpan Pengaturan
+                    Simpan Konfigurasi
                   </button>
                 </div>
               </div>
@@ -1770,71 +1721,71 @@ export default function LeadFinderApp() {
         </main>
       </div>
 
-      {/* Message Preview & Customizer Modal */}
+      {/* Message Preview & Customizer Modal (F-06 / F-07) */}
       {previewModalLead && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 max-w-xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 max-w-lg w-full p-5 space-y-3.5 animate-in fade-in duration-100">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="font-bold text-base text-white flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-emerald-400" />
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                  <MessageSquare className="h-4 w-4 text-emerald-600" />
                   Draf Pesan WhatsApp
                   {previewModalLead.aiMessage && (
-                    <span className="text-[10px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.2 rounded">
                       Gemini AI
                     </span>
                   )}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Tujuan: <span className="font-semibold text-slate-200">{previewModalLead.name}</span> (
-                  {previewModalLead.phoneAnalysis.isMobile
-                    ? previewModalLead.phoneAnalysis.cleaned
-                    : 'Bukan nomor WA'}
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Tujuan: <span className="font-semibold text-slate-800">{previewModalLead.name}</span> (
+                  <span className="font-mono">
+                    {previewModalLead.phoneAnalysis.isMobile
+                      ? previewModalLead.phoneAnalysis.cleaned
+                      : 'Bukan nomor WA'}
+                  </span>
                   )
                 </p>
               </div>
               <button
                 onClick={() => setPreviewModalLead(null)}
-                className="text-slate-400 hover:text-white text-lg leading-none cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 text-base leading-none cursor-pointer"
               >
                 &times;
               </button>
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs font-medium text-slate-300">
-                <span>Teks Pesan (Dapat diedit):</span>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs font-medium text-slate-700">
+                <span>Teks Pesan (Dapat diedit bebas):</span>
                 <button
                   onClick={() => handleGenerateGeminiPitch(previewModalLead)}
                   disabled={generatingAiId === previewModalLead.id}
-                  className="inline-flex items-center gap-1 text-purple-400 hover:text-purple-300 font-semibold cursor-pointer"
+                  className="inline-flex items-center gap-1 text-purple-700 hover:text-purple-900 font-semibold cursor-pointer text-[11px]"
                 >
-                  <Wand2 className="h-3 w-3" />
+                  <Bot className="h-3 w-3" />
                   <span>
-                    {generatingAiId === previewModalLead.id
-                      ? 'Membuat...'
-                      : 'Regenerate via Gemini AI'}
+                    {generatingAiId === previewModalLead.id ? 'Membuat...' : 'Regenerate via Gemini AI'}
                   </span>
                 </button>
               </div>
               <textarea
                 value={editedMessage}
                 onChange={(e) => setEditedMessage(e.target.value)}
-                rows={10}
-                className="w-full p-3 rounded-xl border border-slate-750 text-xs font-sans leading-relaxed text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-950/70"
+                rows={9}
+                className="w-full p-2.5 rounded-lg border border-slate-300 text-xs font-sans leading-relaxed text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-100">
               <button
                 onClick={async () => {
                   await navigator.clipboard.writeText(editedMessage);
-                  showToast('success', 'Pesan berhasil disalin ke clipboard!');
+                  showToast('success', 'Pesan berhasil disalin ke clipboard.');
                 }}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-750 text-xs font-medium text-slate-300 hover:bg-slate-800 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
-                <Copy className="h-3.5 w-3.5" />
-                Salin Teks
+                <Copy className="h-3 w-3 text-slate-500" />
+                <span>Salin Teks</span>
               </button>
 
               <div className="flex flex-wrap items-center gap-2 justify-end">
@@ -1850,7 +1801,7 @@ export default function LeadFinderApp() {
                     setPreviewModalLead(null);
                   }}
                   disabled={!previewModalLead.phoneAnalysis.isMobile}
-                  className="px-3.5 py-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-xs font-medium text-emerald-300 transition cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 transition cursor-pointer"
                 >
                   Buka Web WA
                 </button>
@@ -1858,18 +1809,25 @@ export default function LeadFinderApp() {
                 <button
                   onClick={() => handleAutoSendWhatsApp(previewModalLead, editedMessage)}
                   disabled={
-                    !previewModalLead.phoneAnalysis.isMobile || sendingId === previewModalLead.id
+                    !previewModalLead.phoneAnalysis.isMobile ||
+                    sendingId === previewModalLead.id ||
+                    dispatchCooldown > 0
                   }
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-bold shadow-lg shadow-emerald-500/20 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs cursor-pointer"
                 >
                   {sendingId === previewModalLead.id ? (
                     <>
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      <RefreshCw className="h-3 w-3 animate-spin" />
                       <span>Mengirim...</span>
+                    </>
+                  ) : dispatchCooldown > 0 ? (
+                    <>
+                      <Clock className="h-3 w-3" />
+                      <span className="font-mono">{dispatchCooldown}s</span>
                     </>
                   ) : (
                     <>
-                      <Zap className="h-3.5 w-3.5 fill-current" />
+                      <Zap className="h-3 w-3 fill-current" />
                       <span>Kirim Otomatis (Fonnte)</span>
                     </>
                   )}
