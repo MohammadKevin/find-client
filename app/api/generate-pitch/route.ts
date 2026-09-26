@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
       userRatingCount = 0,
       senderName = 'Mohammad Kevin',
       senderRole = 'freelance web developer',
+      senderEmail = 'mhmdkevin198@gmail.com',
       marketMode = 'indo',
       geminiKey: customGeminiKey,
     } = body;
@@ -34,16 +35,18 @@ export async function POST(req: NextRequest) {
     const fallbackText = isGlobal
       ? `Hi ${businessName} Team,
 
-I noticed your great ${rating > 0 ? `${rating}-star ` : ''}reputation on Google Maps around ${address || 'your local area'}.
+I came across ${businessName} on Google Maps and noticed your great ${rating > 0 ? `${rating}-star ` : ''}reputation around ${address || 'your local area'}.
 
-I'm ${senderName}, a ${senderRole}. I noticed you don't have a modern official website linked to your Google Business profile yet.
+I'm ${senderName}, a ${senderRole}. I noticed you don't have an official modern website linked to your Google business profile yet.
 
-I specialize in building clean, ultra-fast, mobile-friendly websites with online booking & direct quote requests to help local businesses convert more search visitors into paying clients.
+I specialize in building clean, ultra-fast, mobile-friendly websites with online booking, service showcases, and direct quote forms designed specifically to help local businesses convert search visitors into paying customers.
 
-Would you be open to a quick free mockup preview for ${businessName}? I'd be happy to put together a complimentary interactive design concept for you to review with zero obligation.
+Would you be open to a quick, complimentary mockup preview for ${businessName}? I'd be happy to put together a free design concept for you to review with zero obligation.
 
 Best regards,
-${senderName} | Web Developer`
+${senderName}
+Email: ${senderEmail}
+Web & Mobile Developer`
       : generateOutreachMessage({
           businessName,
           category,
@@ -61,21 +64,26 @@ ${senderName} | Web Developer`
     }
 
     const prompt = isGlobal
-      ? `You are an expert B2B sales copywriter crafting cold outreach messages (email & WhatsApp) in professional English for an overseas freelance web developer named "${senderName}" (${senderRole}) reaching out to local business owners/managers in Europe, the UK, US, Australia, and internationally.
+      ? `You are an expert B2B cold email copywriter crafting highly effective, personalized cold outreach emails for an overseas freelance web developer named "${senderName}" (${senderRole}, email: ${senderEmail}) pitching local business owners/decision-makers in the UK, Europe, US, or Australia.
 
-Business Context:
+Business Target Context:
 - Company Name: ${businessName}
 - Industry/Niche: ${category}
 - Location: ${address || 'Local area'}
 - Google Reviews: ${rating > 0 ? `${rating} stars (${userRatingCount} reviews)` : 'Positive reputation'}
-- Key Opportunity: Great local reputation on Google Maps, but currently missing a modern, fast, mobile-friendly official website.
+- Core Opportunity: Great Google Maps reputation, but currently missing a modern, fast, mobile-optimized website.
 
-Writing Instructions:
-1. Warm, professional, concise, direct tone (under 120 words).
-2. Compliment their Google reputation/location genuinely.
-3. Highlight tangible business benefits: modern mobile-first landing page, instant customer booking/contact forms, Google search conversion.
-4. Frictionless Call-to-Action (Soft Offer): Offer to create a free, zero-obligation interactive preview mockup of their website.
-5. Output ONLY the ready-to-send cold outreach message text without quotation marks or extra conversational filler.`
+Cold Email Writing Guidelines:
+1. Subject Line + Body: Write a punchy subject line on the first line (e.g., "Subject: Quick question regarding website for ${businessName}"), followed by a blank line and the email body.
+2. Tone: Warm, professional, concise, zero-fluff, highly respectful (under 110 words total).
+3. Value Proposition: Highlight increased search customer capture, mobile conversion, and direct online quote/booking forms.
+4. Soft Call-to-Action (Frictionless): Offer to build a free, zero-obligation interactive design mockup for ${businessName}.
+5. Sign-off with:
+   Best regards,
+   ${senderName}
+   ${senderEmail}
+   Freelance Web Developer
+6. Output ONLY the subject line and email body ready to send.`
       : `Anda adalah seorang copywriter sales outreach WhatsApp profesional dan ramah di Indonesia.
 Tugas Anda: Buat pesan WhatsApp personalisasi, singkat, padat, sopan, dan persuasif dari seorang freelance web developer bernama "${senderName}" (${senderRole}) kepada pemilik/admin bisnis "${businessName}".
 

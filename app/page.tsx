@@ -464,6 +464,12 @@ export default function LeadFinderApp() {
     }
     return 'freelance web developer';
   });
+  const [senderEmail, setSenderEmail] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('lead_sender_email') || 'mhmdkevin198@gmail.com';
+    }
+    return 'mhmdkevin198@gmail.com';
+  });
 
   // Action states
   const [isLoading, setIsLoading] = useState(false);
@@ -610,6 +616,7 @@ export default function LeadFinderApp() {
       localStorage.setItem('fonnte_api_token', fonnteToken);
       localStorage.setItem('lead_sender_name', senderName);
       localStorage.setItem('lead_sender_role', senderRole);
+      localStorage.setItem('lead_sender_email', senderEmail);
       showToast('success', 'Pengaturan API & Profil berhasil disimpan.');
     } catch {
       showToast('error', 'Gagal menyimpan konfigurasi ke browser storage.');
@@ -929,6 +936,7 @@ export default function LeadFinderApp() {
             userRatingCount: lead.userRatingCount,
             senderName,
             senderRole,
+            senderEmail,
             marketMode,
             geminiKey: geminiApiKey || undefined,
           }),
@@ -1024,6 +1032,7 @@ export default function LeadFinderApp() {
           userRatingCount: lead.userRatingCount,
           senderName,
           senderRole,
+          senderEmail,
           marketMode,
           geminiKey: geminiApiKey || undefined,
         }),
@@ -2939,7 +2948,7 @@ export default function LeadFinderApp() {
                 </div>
 
                 {/* Sender Profile */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-800">Nama Pengirim</label>
                     <input
@@ -2948,6 +2957,16 @@ export default function LeadFinderApp() {
                       onChange={(e) => setSenderName(e.target.value)}
                       placeholder="Mohammad Kevin"
                       className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-800">Email Pengirim (Global)</label>
+                    <input
+                      type="email"
+                      value={senderEmail}
+                      onChange={(e) => setSenderEmail(e.target.value)}
+                      placeholder="mhmdkevin198@gmail.com"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
                     />
                   </div>
                   <div className="space-y-1">
