@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { generateOutreachMessage } from '@/lib/template-generator';
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,11 +24,20 @@ export async function POST(req: NextRequest) {
 
     const apiKey = customGeminiKey || process.env.GEMINI_API_KEY;
 
+    const fallbackText = generateOutreachMessage({
+      businessName,
+      category,
+      senderName,
+      senderRole,
+    });
+
     if (!apiKey) {
-      return NextResponse.json(
-        { error: 'GEMINI_API_KEY belum dikonfigurasi di .env.local.' },
-        { status: 400 }
-      );
+      return NextResponse.json({
+        success: true,
+        businessName,
+        message: fallbackText,
+        source: 'template_fallback',
+      });
     }
 
     const prompt = `Anda adalah seorang copywriter sales outreach WhatsApp profesional dan ramah di Indonesia.
@@ -51,9 +61,14 @@ Instruksi Penulisan:
 6. Hindari bahasa kaku atau terlalu formal/kuno. Gunakan gaya bahasa Indonesia modern yang natural, hangat, dan profesional.
 7. Output HANYA teks pesan WhatsApp yang siap kirim tanpa tanda kutip pembuka/penutup atau penjelasan tambahan.`;
 
-    const modelsToTry = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash-lite'];
+    const modelsToTry = [
+      'gemini-2.5-flash-lite',
+      'gemini-3.8-flash',
+      'gemini-flash-latest',
+      'gemini-3.5-flash',
+      'gemini-3.1-flash-lite',
+    ];
     let generatedText = '';
-    let lastError: string | null = null;
 
     for (const model of modelsToTry) {
       try {
@@ -85,28 +100,19 @@ Instruksi Penulisan:
             generatedText = candidate.trim();
             break;
           }
-        } else {
-          const errData = await geminiRes.json().catch(() => null);
-          lastError = errData?.error?.message || geminiRes.statusText;
         }
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : 'Fetch failed';
+      } catch {
+        // Fallback to next model
       }
     }
 
-    if (!generatedText) {
-      return NextResponse.json(
-        {
-          error: `Gagal generate pesan dengan Gemini AI: ${lastError || 'Unknown error'}`,
-        },
-        { status: 500 }
-      );
-    }
+    const finalMessage = generatedText || fallbackText;
 
     return NextResponse.json({
       success: true,
       businessName,
-      message: generatedText,
+      message: finalMessage,
+      source: generatedText ? 'gemini_ai' : 'template_fallback',
     });
   } catch (error: unknown) {
     const errorMsg =
