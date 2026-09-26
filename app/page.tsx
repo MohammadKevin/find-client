@@ -30,6 +30,8 @@ import {
   Layers,
   Zap,
   CheckCheck,
+  Bot,
+  Wand2,
 } from 'lucide-react';
 import {
   generateOutreachMessage,
@@ -43,6 +45,7 @@ type OutreachStatus = 'new' | 'contacted' | 'followup' | 'closed' | 'rejected';
 interface LeadWithMeta extends PlaceLead {
   status: OutreachStatus;
   selectedCategory: OutreachCategory;
+  aiMessage?: string;
   customNotes?: string;
 }
 
@@ -115,9 +118,16 @@ export default function LeadFinderPage() {
   const [selectedCity, setSelectedCity] = useState('Malang');
   const [selectedCategoryPreset, setSelectedCategoryPreset] = useState(PRESET_CATEGORIES[1].query);
 
-  const [apiKey, setApiKey] = useState(() => {
+  const [placesApiKey, setPlacesApiKey] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('google_places_api_key') || '';
+    }
+    return '';
+  });
+
+  const [geminiApiKey, setGeminiApiKey] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('gemini_api_key') || '';
     }
     return '';
   });
@@ -129,7 +139,7 @@ export default function LeadFinderPage() {
     return '';
   });
 
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
   const [filterNoWebsiteOnly, setFilterNoWebsiteOnly] = useState(true);
   const [filterValidWaOnly, setFilterValidWaOnly] = useState(false);
@@ -151,6 +161,7 @@ export default function LeadFinderPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [generatingAiId, setGeneratingAiId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [leads, setLeads] = useState<LeadWithMeta[]>([]);
@@ -175,10 +186,17 @@ export default function LeadFinderPage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleSaveApiKey = (value: string) => {
-    setApiKey(value);
+  const handleSavePlacesApiKey = (value: string) => {
+    setPlacesApiKey(value);
     try {
       localStorage.setItem('google_places_api_key', value);
+    } catch {}
+  };
+
+  const handleSaveGeminiApiKey = (value: string) => {
+    setGeminiApiKey(value);
+    try {
+      localStorage.setItem('gemini_api_key', value);
     } catch {}
   };
 
@@ -234,7 +252,7 @@ export default function LeadFinderPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: activeQuery,
-          apiKey: apiKey || undefined,
+          apiKey: placesApiKey || undefined,
         }),
       });
 
@@ -296,13 +314,55 @@ export default function LeadFinderPage() {
     return { total, noWebsite, validWa, contacted };
   }, [leads]);
 
+  const handleGenerateGeminiPitch = async (lead: LeadWithMeta) => {
+    setGeneratingAiId(lead.id);
+
+    try {
+      const res = await fetch('/api/generate-pitch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessName: lead.name,
+          category: lead.selectedCategory,
+          address: lead.formattedAddress,
+          rating: lead.rating,
+          userRatingCount: lead.userRatingCount,
+          senderName,
+          senderRole,
+          geminiKey: geminiApiKey || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal membuat pesan dengan Gemini AI.');
+      }
+
+      const aiText = data.message;
+      setLeads((prev) =>
+        prev.map((item) => (item.id === lead.id ? { ...item, aiMessage: aiText } : item))
+      );
+
+      setPreviewModalLead({ ...lead, aiMessage: aiText });
+      setEditedMessage(aiText);
+      showToast('success', `Gemini AI selesai membuat draf untuk ${lead.name}!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal menghubungi Gemini AI.';
+      showToast('error', msg);
+    } finally {
+      setGeneratingAiId(null);
+    }
+  };
+
   const handleCopyMessage = async (lead: LeadWithMeta) => {
-    const message = generateOutreachMessage({
-      businessName: lead.name,
-      category: lead.selectedCategory,
-      senderName,
-      senderRole,
-    });
+    const message =
+      lead.aiMessage ||
+      generateOutreachMessage({
+        businessName: lead.name,
+        category: lead.selectedCategory,
+        senderName,
+        senderRole,
+      });
 
     try {
       await navigator.clipboard.writeText(message);
@@ -317,12 +377,14 @@ export default function LeadFinderPage() {
   const handleOpenWhatsAppManual = (lead: LeadWithMeta) => {
     if (!lead.phoneAnalysis.isValid || !lead.phoneAnalysis.isMobile) return;
 
-    const message = generateOutreachMessage({
-      businessName: lead.name,
-      category: lead.selectedCategory,
-      senderName,
-      senderRole,
-    });
+    const message =
+      lead.aiMessage ||
+      generateOutreachMessage({
+        businessName: lead.name,
+        category: lead.selectedCategory,
+        senderName,
+        senderRole,
+      });
 
     const url = `https://wa.me/${lead.phoneAnalysis.cleaned}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
@@ -340,6 +402,7 @@ export default function LeadFinderPage() {
 
     const messageToSend =
       customText ||
+      lead.aiMessage ||
       generateOutreachMessage({
         businessName: lead.name,
         category: lead.selectedCategory,
@@ -380,12 +443,14 @@ export default function LeadFinderPage() {
   };
 
   const handleOpenPreview = (lead: LeadWithMeta) => {
-    const initialText = generateOutreachMessage({
-      businessName: lead.name,
-      category: lead.selectedCategory,
-      senderName,
-      senderRole,
-    });
+    const initialText =
+      lead.aiMessage ||
+      generateOutreachMessage({
+        businessName: lead.name,
+        category: lead.selectedCategory,
+        senderName,
+        senderRole,
+      });
     setPreviewModalLead(lead);
     setEditedMessage(initialText);
   };
@@ -490,12 +555,12 @@ export default function LeadFinderPage() {
                 <h1 className="font-bold text-lg text-slate-900 leading-none">
                   Lead Finder & Outreach
                 </h1>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
-                  WA Auto-Sender
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-800">
+                  <Bot className="h-3 w-3" /> Gemini AI Powered
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Pengirim Aktif: <strong className="text-emerald-700 font-medium">+62 895-6294-60144 ({senderName})</strong>
+                Pengirim: <strong className="text-emerald-700 font-medium">+62 895-6294-60144 ({senderName})</strong>
               </p>
             </div>
           </div>
@@ -507,13 +572,13 @@ export default function LeadFinderPage() {
               title="Atur Profil Pengirim Pesan"
             >
               <UserCheck className="h-3.5 w-3.5 text-slate-500" />
-              <span>Profil Pengirim</span>
+              <span>Profil</span>
             </button>
 
             <button
-              onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+              onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
-              title="Konfigurasi API Key & Fonnte Gateway"
+              title="Konfigurasi API Keys (Gemini, Places, Fonnte)"
             >
               <Key className="h-3.5 w-3.5" />
               <span>API Gateway</span>
@@ -522,17 +587,59 @@ export default function LeadFinderPage() {
         </div>
       </header>
 
-      {/* Drawer / Setting panels */}
-      {showApiKeyInput && (
-        <div className="bg-emerald-50/70 border-b border-emerald-200/80 px-4 py-3 sm:px-6">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-emerald-950">
-            <div>
-              <div className="flex items-center gap-1.5 font-semibold text-slate-900 mb-1">
-                <Zap className="h-4 w-4 text-emerald-600" />
-                Fonnte WhatsApp Token (Device: 0895629460144)
+      {/* API Configuration Drawer */}
+      {showSettingsDrawer && (
+        <div className="bg-slate-100/90 border-b border-slate-200 px-4 py-4 sm:px-6">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            {/* Gemini Key */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center gap-1.5 font-semibold text-purple-900 mb-1">
+                <Bot className="h-4 w-4 text-purple-600" />
+                Google Gemini AI Key
               </div>
               <p className="text-slate-500 mb-2">
-                Sudah otomatis dikonfigurasi via server. Masukkan token baru jika Anda ingin mengganti device.
+                Membuat draf pesan WhatsApp yang sangat personal & persuasif otomatis.
+              </p>
+              <input
+                type="password"
+                value={geminiApiKey}
+                onChange={(e) => handleSaveGeminiApiKey(e.target.value)}
+                placeholder="AQ.Ab8RN6IZE..."
+                className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+            </div>
+
+            {/* Places Key */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center gap-1.5 font-semibold text-blue-900 mb-1">
+                <Search className="h-4 w-4 text-blue-600" />
+                Google Places API (New) Key
+              </div>
+              <p className="text-slate-500 mb-2">
+                Untuk mencari daftar bisnis lokal di Google Maps. Berawalan <code className="bg-blue-50 px-1 py-0.5 rounded text-blue-800">AIzaSy...</code>
+              </p>
+              <input
+                type="password"
+                value={placesApiKey}
+                onChange={(e) => handleSavePlacesApiKey(e.target.value)}
+                placeholder="AIzaSy..."
+                className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Fonnte Gateway */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5 font-semibold text-emerald-900">
+                  <Zap className="h-4 w-4 text-emerald-600" />
+                  Fonnte WhatsApp Token
+                </div>
+                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono">
+                  0895629460144
+                </span>
+              </div>
+              <p className="text-slate-500 mb-2">
+                Kirim pesan otomatis langsung dari server via WhatsApp Anda.
               </p>
               <div className="flex items-center gap-2">
                 <input
@@ -540,30 +647,11 @@ export default function LeadFinderPage() {
                   value={fonnteToken}
                   onChange={(e) => handleSaveFonnteToken(e.target.value)}
                   placeholder="hAEbTy6zmgvns..."
-                  className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-1.5 font-semibold text-slate-900 mb-1">
-                <Key className="h-4 w-4 text-amber-600" />
-                Google Places API Key
-              </div>
-              <p className="text-slate-500 mb-2">
-                Digunakan untuk mencari bisnis di Google Maps yang belum punya website.
-              </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => handleSaveApiKey(e.target.value)}
-                  placeholder="AQ.Ab8RN6IZE..."
-                  className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 <button
-                  onClick={() => setShowApiKeyInput(false)}
-                  className="px-3 py-1.5 rounded-md bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition cursor-pointer shrink-0"
+                  onClick={() => setShowSettingsDrawer(false)}
+                  className="px-3 py-1.5 rounded-md bg-slate-800 text-white font-medium hover:bg-slate-900 transition cursor-pointer shrink-0"
                 >
                   Tutup
                 </button>
@@ -843,6 +931,7 @@ export default function LeadFinderPage() {
               const phone = lead.phoneAnalysis;
               const hasValidWa = phone.isValid && phone.isMobile;
               const isSendingThis = sendingId === lead.id;
+              const isGeneratingAi = generatingAiId === lead.id;
 
               return (
                 <div
@@ -888,6 +977,13 @@ export default function LeadFinderPage() {
                             <span className="text-slate-400">
                               ({lead.userRatingCount})
                             </span>
+                          </span>
+                        )}
+
+                        {/* AI Draft Indicator */}
+                        {lead.aiMessage && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                            <Bot className="h-3 w-3" /> AI Customized
                           </span>
                         )}
                       </div>
@@ -971,6 +1067,21 @@ export default function LeadFinderPage() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                        {/* Gemini AI Generate Pitch Button */}
+                        <button
+                          onClick={() => handleGenerateGeminiPitch(lead)}
+                          disabled={isGeneratingAi}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-semibold transition cursor-pointer"
+                          title="Tulis copywriting penawaran unik menggunakan Gemini AI"
+                        >
+                          {isGeneratingAi ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin text-purple-600" />
+                          ) : (
+                            <Wand2 className="h-3.5 w-3.5 text-purple-600" />
+                          )}
+                          <span>Gemini AI</span>
+                        </button>
+
                         {/* Preview button */}
                         <button
                           onClick={() => handleOpenPreview(lead)}
@@ -1121,6 +1232,11 @@ export default function LeadFinderPage() {
                 <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-emerald-600" />
                   Draf Pesan WhatsApp
+                  {previewModalLead.aiMessage && (
+                    <span className="text-[11px] font-semibold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
+                      Gemini AI
+                    </span>
+                  )}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Tujuan: <span className="font-semibold text-slate-800">{previewModalLead.name}</span> (
@@ -1141,7 +1257,14 @@ export default function LeadFinderPage() {
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs font-medium text-slate-700">
                 <span>Teks Pesan (Dapat diedit bebas):</span>
-                <span className="text-slate-400">{editedMessage.length} karakter</span>
+                <button
+                  onClick={() => handleGenerateGeminiPitch(previewModalLead)}
+                  disabled={generatingAiId === previewModalLead.id}
+                  className="inline-flex items-center gap-1 text-purple-700 hover:text-purple-900 font-semibold cursor-pointer"
+                >
+                  <Wand2 className="h-3 w-3" />
+                  <span>{generatingAiId === previewModalLead.id ? 'Membuat...' : 'Regenerate via Gemini AI'}</span>
+                </button>
               </div>
               <textarea
                 value={editedMessage}
