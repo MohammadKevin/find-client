@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search,
   Phone,
@@ -34,6 +34,9 @@ import {
   Smartphone,
   Target,
   ArrowRight,
+  Lock,
+  LogOut,
+  History,
 } from 'lucide-react';
 import {
   generateOutreachMessage,
@@ -52,6 +55,13 @@ interface LeadWithMeta extends PlaceLead {
   aiMessage?: string;
   customNotes?: string;
   addedAt?: string;
+}
+
+interface ContactedPhoneRecord {
+  cleanPhone: string;
+  contactedAt: string;
+  businessName: string;
+  status: OutreachStatus;
 }
 
 const POPULAR_CITIES = [
@@ -167,7 +177,17 @@ const STATUS_CONFIG: Record<
 };
 
 export default function LeadFinderApp() {
-  const [isAppLoading, setIsAppLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('leadfinder_auth_pin') === '1992';
+    }
+    return false;
+  });
+  const [pinInputs, setPinInputs] = useState(['', '', '', '']);
+  const [pinError, setPinError] = useState(false);
+  const pinInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
+
+  const [isAppLoading, setIsAppLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('search');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -180,6 +200,19 @@ export default function LeadFinderApp() {
   const [minRatingFilter, setMinRatingFilter] = useState<number>(0);
   const [statusFilter, setStatusFilter] = useState<'all' | OutreachStatus>('all');
 
+  // Multi-System Phone Registry (Anti-Duplicate Check)
+  const [phoneRegistry, setPhoneRegistry] = useState<Record<string, ContactedPhoneRecord>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('lead_phone_registry');
+        return stored ? JSON.parse(stored) : {};
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  });
+
   // Anti-ban throttling cooldown (3.0s interval)
   const [dispatchCooldown, setDispatchCooldown] = useState<number>(0);
 
@@ -190,28 +223,24 @@ export default function LeadFinderApp() {
     }
     return '';
   });
-
   const [geminiApiKey, setGeminiApiKey] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('gemini_api_key') || '';
     }
     return '';
   });
-
   const [fonnteToken, setFonnteToken] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('fonnte_api_token') || '';
     }
     return '';
   });
-
   const [senderName, setSenderName] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('lead_sender_name') || 'Mohammad Kevin';
     }
     return 'Mohammad Kevin';
   });
-
   const [senderRole, setSenderRole] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('lead_sender_role') || 'freelance web developer';
@@ -239,7 +268,6 @@ export default function LeadFinderApp() {
     }
     return {};
   });
-
   const [savedLeadsCrm, setSavedLeadsCrm] = useState<LeadWithMeta[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -257,13 +285,47 @@ export default function LeadFinderApp() {
   const [previewModalLead, setPreviewModalLead] = useState<LeadWithMeta | null>(null);
   const [editedMessage, setEditedMessage] = useState('');
 
-  // Initial load transition simulation
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsAppLoading(false);
-    }, 450);
-    return () => clearTimeout(timer);
-  }, []);
+  // PIN Authentication Logic
+  const handlePinInput = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    
+    const newPin = [...pinInputs];
+    newPin[index] = value;
+    setPinInputs(newPin);
+    setPinError(false);
+
+    if (value && index < 3) {
+      pinInputRefs[index + 1].current?.focus();
+    }
+
+    const currentPin = newPin.join('');
+    if (currentPin.length === 4) {
+      if (currentPin === '1992') {
+        sessionStorage.setItem('leadfinder_auth_pin', '1992');
+        setIsAppLoading(true);
+        setIsAuthenticated(true);
+        setTimeout(() => {
+          setIsAppLoading(false);
+        }, 500);
+      } else {
+        setPinError(true);
+        setTimeout(() => setPinInputs(['', '', '', '']), 500);
+        pinInputRefs[0].current?.focus();
+      }
+    }
+  };
+
+  const handlePinKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !pinInputs[index] && index > 0) {
+      pinInputRefs[index - 1].current?.focus();
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('leadfinder_auth_pin');
+    setPinInputs(['', '', '', '']);
+    setIsAuthenticated(false);
+  };
 
   // Cooldown timer effect
   useEffect(() => {
@@ -291,6 +353,29 @@ export default function LeadFinderApp() {
     } catch {
       showToast('error', 'Gagal menyimpan konfigurasi ke browser storage.');
     }
+  };
+
+  // Smart Contact Registration
+  const registerContactHistory = (lead: LeadWithMeta, status: OutreachStatus = 'contacted') => {
+    const cleanPhone = lead.phoneAnalysis.cleaned;
+    if (cleanPhone) {
+      setPhoneRegistry((prev) => {
+        const next = {
+          ...prev,
+          [cleanPhone]: {
+            cleanPhone,
+            contactedAt: new Date().toISOString(),
+            businessName: lead.name,
+            status,
+          },
+        };
+        try {
+          localStorage.setItem('lead_phone_registry', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+    updateLeadStatus(lead.id, status);
   };
 
   const updateLeadStatus = (placeId: string, newStatus: OutreachStatus) => {
@@ -368,10 +453,19 @@ export default function LeadFinderApp() {
 
       const formatted: LeadWithMeta[] = (data.places || []).map((p: PlaceLead) => {
         const detected = detectCategory(p.name, activeQuery);
-        const currentStatus = savedStatuses[p.id] || 'new';
+        
+        // Smart Status Memory (Checks by Map ID or exact Phone Number)
+        const cleanP = p.phoneAnalysis.cleaned;
+        const phoneMemory = cleanP ? phoneRegistry[cleanP] : null;
+        let determinedStatus = savedStatuses[p.id] || 'new';
+
+        if (phoneMemory && determinedStatus === 'new') {
+          determinedStatus = phoneMemory.status; // Auto-hydrate from robust phone history
+        }
+
         const leadObj: LeadWithMeta = {
           ...p,
-          status: currentStatus,
+          status: determinedStatus,
           selectedCategory: detected,
           addedAt: new Date().toLocaleDateString('id-ID'),
         };
@@ -500,13 +594,13 @@ export default function LeadFinderApp() {
     window.open(url, '_blank');
 
     if (lead.status === 'new') {
-      updateLeadStatus(lead.id, 'contacted');
+      registerContactHistory(lead, 'contacted');
     }
   };
 
   const handleAutoSendWhatsApp = async (lead: LeadWithMeta, customText?: string) => {
     if (dispatchCooldown > 0) {
-      showToast('error', `Anti-ban aktif. Mohon tunggu ${dispatchCooldown} detik sebelum kirim berikutnya.`);
+      showToast('error', `Anti-ban aktif. Tunggu ${dispatchCooldown} detik sebelum kirim berikutnya.`);
       return;
     }
 
@@ -546,8 +640,9 @@ export default function LeadFinderApp() {
 
       // Enforce 3-second anti-ban rate limiting
       setDispatchCooldown(3);
-      updateLeadStatus(lead.id, 'contacted');
+      registerContactHistory(lead, 'contacted');
       showToast('success', `Pesan berhasil dikirim ke ${lead.name} (${lead.phoneAnalysis.cleaned}).`);
+      
       if (previewModalLead?.id === lead.id) {
         setPreviewModalLead(null);
       }
@@ -640,11 +735,56 @@ export default function LeadFinderApp() {
     URL.revokeObjectURL(url);
   };
 
-  // 1. Initial Page Loading Splash Screen (Solid clean white baseline)
+  // 0. Pre-Flight Authentication Wall (PIN 1992)
+  if (!isAuthenticated && !isAppLoading) {
+    return (
+      <div className="min-h-screen bg-white text-slate-900 flex flex-col items-center justify-center p-6 select-none animate-in fade-in zoom-in-95 duration-200">
+        <div className="max-w-sm w-full bg-slate-50 border border-slate-200 rounded-2xl p-8 shadow-xs flex flex-col items-center text-center">
+          <div className="h-14 w-14 rounded-full bg-emerald-100 flex items-center justify-center mb-6">
+            <Lock className="h-6 w-6 text-emerald-700" />
+          </div>
+          
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 mb-1">Akses Terkunci</h1>
+          <p className="text-xs text-slate-500 mb-8">
+            Silakan masukkan kode PIN 4 angka untuk membuka workspace LeadFinder Pro.
+          </p>
+
+          <div className={`flex items-center gap-3 mb-6 transition-transform ${pinError ? 'animate-bounce' : ''}`}>
+            {pinInputs.map((val, index) => (
+              <input
+                key={index}
+                ref={pinInputRefs[index]}
+                type="password"
+                inputMode="numeric"
+                maxLength={1}
+                value={val}
+                onChange={(e) => handlePinInput(index, e.target.value)}
+                onKeyDown={(e) => handlePinKeyDown(index, e)}
+                className={`w-14 h-14 text-center text-2xl font-mono font-bold rounded-xl border-2 focus:outline-none transition ${
+                  pinError 
+                    ? 'border-red-400 bg-red-50 text-red-700 focus:border-red-500 focus:ring-4 focus:ring-red-100' 
+                    : 'border-slate-200 bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50'
+                }`}
+                autoComplete="off"
+              />
+            ))}
+          </div>
+
+          {pinError ? (
+            <p className="text-[11px] font-semibold text-red-600 animate-pulse">PIN salah. Silakan coba lagi.</p>
+          ) : (
+            <p className="text-[11px] font-medium text-slate-400">Restricted Enterprise Access</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 1. Initial Workspace Loading Splash Screen
   if (isAppLoading) {
     return (
       <div className="min-h-screen bg-white text-slate-900 flex flex-col items-center justify-center p-6 select-none">
-        <div className="flex flex-col items-center gap-4 max-w-sm w-full text-center">
+        <div className="flex flex-col items-center gap-4 max-w-sm w-full text-center fade-out zoom-out-95 duration-500">
           <div className="h-12 w-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
             <Target className="h-6 w-6" />
           </div>
@@ -653,7 +793,7 @@ export default function LeadFinderApp() {
             <p className="text-xs text-slate-500">Memuat workspace dan konfigurasi gateway...</p>
           </div>
           <div className="w-40 h-1 bg-slate-100 rounded-full overflow-hidden mt-1">
-            <div className="h-full bg-emerald-600 rounded-full animate-pulse w-2/3" />
+            <div className="h-full bg-emerald-600 rounded-full animate-[progress_0.6s_ease-in-out_infinite]" />
           </div>
         </div>
       </div>
@@ -794,6 +934,8 @@ export default function LeadFinderApp() {
               </div>
             </button>
 
+            <div className="border-t border-slate-100 my-2 pt-2" />
+
             <button
               onClick={() => {
                 setActiveTab('settings');
@@ -807,7 +949,17 @@ export default function LeadFinderApp() {
             >
               <div className="flex items-center gap-2.5">
                 <Settings className="h-4 w-4 text-slate-500" />
-                <span>Pengaturan API</span>
+                <span>Pengaturan Gateway</span>
+              </div>
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer text-slate-500 hover:bg-red-50 hover:text-red-700 mt-2"
+            >
+              <div className="flex items-center gap-2.5">
+                <LogOut className="h-4 w-4 opacity-70" />
+                <span>Kunci Sesi App</span>
               </div>
             </button>
           </nav>
@@ -834,7 +986,7 @@ export default function LeadFinderApp() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 bg-white">
-        {/* Top Header & Telemetry Bar (F-03) */}
+        {/* Top Header & Telemetry Bar */}
         <header className="sticky top-0 z-30 h-14 bg-white/95 backdrop-blur-sm border-b border-slate-200 px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
@@ -854,7 +1006,6 @@ export default function LeadFinderApp() {
             </div>
           </div>
 
-          {/* Real-time Telemetry Bar */}
           <div className="flex items-center gap-2 text-xs">
             <div className="hidden sm:flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-mono">
@@ -1020,7 +1171,7 @@ export default function LeadFinderApp() {
                   </button>
                 </form>
 
-                {/* Binary Switches & Rating Filters */}
+                {/* Binary Switches & Filters */}
                 <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-100 text-xs">
                   <div className="flex flex-wrap items-center gap-4">
                     <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -1094,7 +1245,7 @@ export default function LeadFinderApp() {
                 </div>
               )}
 
-              {/* Metric Aggregators (F-04) */}
+              {/* Metric Aggregators */}
               {leads.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
@@ -1154,7 +1305,7 @@ export default function LeadFinderApp() {
                 </div>
               )}
 
-              {/* Dense Prospect Cards (F-05) */}
+              {/* Dense Prospect Cards */}
               {filteredLeads.length > 0 ? (
                 <div className="space-y-3">
                   {filteredLeads.map((lead) => {
@@ -1162,6 +1313,10 @@ export default function LeadFinderApp() {
                     const hasValidWa = phone.isValid && phone.isMobile;
                     const isSendingThis = sendingId === lead.id;
                     const isGeneratingAi = generatingAiId === lead.id;
+
+                    // History check
+                    const cleanP = phone.cleaned;
+                    const pastRecord = cleanP ? phoneRegistry[cleanP] : null;
 
                     return (
                       <div
@@ -1203,6 +1358,12 @@ export default function LeadFinderApp() {
                                 </span>
                               )}
 
+                              {pastRecord && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                  <History className="h-3 w-3" /> Pernah Dihubungi
+                                </span>
+                              )}
+
                               {lead.aiMessage && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
                                   <Bot className="h-3 w-3" /> AI Customized
@@ -1240,7 +1401,6 @@ export default function LeadFinderApp() {
                           {/* Controls & Actions Column */}
                           <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-2.5 shrink-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              {/* Outreach Category */}
                               <select
                                 aria-label="Kategori Template"
                                 value={lead.selectedCategory}
@@ -1254,7 +1414,7 @@ export default function LeadFinderApp() {
                                 <option value="general">Umum</option>
                               </select>
 
-                              {/* Pipeline status (F-08) */}
+                              {/* Pipeline status */}
                               <select
                                 aria-label="Status Pipeline"
                                 value={lead.status}
@@ -1275,7 +1435,6 @@ export default function LeadFinderApp() {
 
                             {/* Buttons */}
                             <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto justify-end">
-                              {/* Gemini AI Trigger (F-06) */}
                               <button
                                 onClick={() => handleGenerateGeminiPitch(lead)}
                                 disabled={isGeneratingAi}
@@ -1328,7 +1487,7 @@ export default function LeadFinderApp() {
                                 <span>Web WA</span>
                               </button>
 
-                              {/* Fonnte WhatsApp Dispatch (F-07) with anti-ban throttle */}
+                              {/* Fonnte WhatsApp Dispatch with anti-ban throttle */}
                               <button
                                 onClick={() => handleAutoSendWhatsApp(lead)}
                                 disabled={!hasValidWa || isSendingThis || dispatchCooldown > 0}
@@ -1721,7 +1880,7 @@ export default function LeadFinderApp() {
         </main>
       </div>
 
-      {/* Message Preview & Customizer Modal (F-06 / F-07) */}
+      {/* Message Preview Modal */}
       {previewModalLead && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-lg border border-slate-200 max-w-lg w-full p-5 space-y-3.5 animate-in fade-in duration-100">
@@ -1741,7 +1900,7 @@ export default function LeadFinderApp() {
                   <span className="font-mono">
                     {previewModalLead.phoneAnalysis.isMobile
                       ? previewModalLead.phoneAnalysis.cleaned
-                      : 'Bukan nomor WA'}
+                      : 'Bukan WA Seluler'}
                   </span>
                   )
                 </p>
@@ -1796,7 +1955,7 @@ export default function LeadFinderApp() {
                     )}`;
                     window.open(url, '_blank');
                     if (previewModalLead.status === 'new') {
-                      updateLeadStatus(previewModalLead.id, 'contacted');
+                      registerContactHistory(previewModalLead, 'contacted');
                     }
                     setPreviewModalLead(null);
                   }}
