@@ -38,7 +38,6 @@ import {
   LogOut,
   History,
   MessageSquareQuote,
-  MessageCircle,
 } from 'lucide-react';
 import {
   generateOutreachMessage,
@@ -287,6 +286,9 @@ export default function LeadFinderApp() {
   const [previewModalLead, setPreviewModalLead] = useState<LeadWithMeta | null>(null);
   const [editedMessage, setEditedMessage] = useState('');
 
+  // CRM Tab filter
+  const [crmStatusFilter, setCrmStatusFilter] = useState<'all' | OutreachStatus>('all');
+
   // AI Chat Copilot (Response Generator) State
   const [copilotIncomingMessage, setCopilotIncomingMessage] = useState('');
   const [copilotClientName, setCopilotClientName] = useState('');
@@ -296,6 +298,13 @@ export default function LeadFinderApp() {
   const [copilotGeneratedReply, setCopilotGeneratedReply] = useState('');
   const [isGeneratingCopilot, setIsGeneratingCopilot] = useState(false);
   const [isSendingCopilot, setIsSendingCopilot] = useState(false);
+
+  // Batch multi-select & quick presets
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [isBatchGenerating, setIsBatchGenerating] = useState(false);
+  const [isBatchSending, setIsBatchSending] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [quickPresetFilter, setQuickPresetFilter] = useState<'all' | 'hot' | 'wa_ready' | 'uncontacted'>('all');
 
   // PIN Authentication Logic
   const handlePinInput = (index: number, value: string) => {
@@ -507,6 +516,14 @@ export default function LeadFinderApp() {
 
   const filteredLeads = useMemo(() => {
     return leads.filter((item) => {
+      if (quickPresetFilter === 'hot') {
+        if (item.hasWebsite || item.rating < 4.5) return false;
+      } else if (quickPresetFilter === 'wa_ready') {
+        if (!item.phoneAnalysis.isValid || !item.phoneAnalysis.isMobile) return false;
+      } else if (quickPresetFilter === 'uncontacted') {
+        if (item.status !== 'new') return false;
+      }
+
       if (filterNoWebsiteOnly && item.hasWebsite) return false;
       if (filterValidWaOnly && (!item.phoneAnalysis.isValid || !item.phoneAnalysis.isMobile)) {
         return false;
@@ -517,7 +534,110 @@ export default function LeadFinderApp() {
       if (statusFilter !== 'all' && item.status !== statusFilter) return false;
       return true;
     });
-  }, [leads, filterNoWebsiteOnly, filterValidWaOnly, minRatingFilter, statusFilter]);
+  }, [leads, quickPresetFilter, filterNoWebsiteOnly, filterValidWaOnly, minRatingFilter, statusFilter]);
+
+  const toggleLeadSelect = (id: string) => {
+    setSelectedLeadIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = (items: LeadWithMeta[]) => {
+    if (selectedLeadIds.length === items.length) {
+      setSelectedLeadIds([]);
+    } else {
+      setSelectedLeadIds(items.map((i) => i.id));
+    }
+  };
+
+  const handleBatchGenerateAi = async () => {
+    const targetLeads = leads.filter((l) => selectedLeadIds.includes(l.id));
+    if (targetLeads.length === 0) return;
+
+    setIsBatchGenerating(true);
+    setBatchProgress({ current: 0, total: targetLeads.length });
+
+    let count = 0;
+    for (const lead of targetLeads) {
+      try {
+        const res = await fetch('/api/generate-pitch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            businessName: lead.name,
+            category: lead.selectedCategory,
+            address: lead.formattedAddress,
+            rating: lead.rating,
+            userRatingCount: lead.userRatingCount,
+            senderName,
+            senderRole,
+            geminiKey: geminiApiKey || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (data.message) {
+          setLeads((prev) =>
+            prev.map((item) => (item.id === lead.id ? { ...item, aiMessage: data.message } : item))
+          );
+        }
+      } catch {}
+      count++;
+      setBatchProgress({ current: count, total: targetLeads.length });
+    }
+
+    setIsBatchGenerating(false);
+    setBatchProgress(null);
+    showToast('success', `Draf AI selesai dibuat untuk ${targetLeads.length} prospek.`);
+  };
+
+  const handleBatchSendWhatsApp = async () => {
+    const targetLeads = leads.filter(
+      (l) => selectedLeadIds.includes(l.id) && l.phoneAnalysis.isValid && l.phoneAnalysis.isMobile
+    );
+    if (targetLeads.length === 0) {
+      showToast('error', 'Tidak ada nomor WhatsApp valid di antara prospek yang dipilih.');
+      return;
+    }
+
+    setIsBatchSending(true);
+    setBatchProgress({ current: 0, total: targetLeads.length });
+
+    let count = 0;
+    for (const lead of targetLeads) {
+      const msg =
+        lead.aiMessage ||
+        generateOutreachMessage({
+          businessName: lead.name,
+          category: lead.selectedCategory,
+          senderName,
+          senderRole,
+        });
+
+      try {
+        await fetch('/api/send-wa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target: lead.phoneAnalysis.cleaned,
+            message: msg,
+            token: fonnteToken || undefined,
+          }),
+        });
+        registerContactHistory(lead, 'contacted');
+      } catch {}
+
+      count++;
+      setBatchProgress({ current: count, total: targetLeads.length });
+
+      if (count < targetLeads.length) {
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
+
+    setIsBatchSending(false);
+    setBatchProgress(null);
+    showToast('success', `Selesai mengirim ${count} pesan WhatsApp otomatis.`);
+  };
 
   const stats = useMemo(() => {
     const total = leads.length;
@@ -1392,31 +1512,91 @@ export default function LeadFinderApp() {
 
               {/* Action Toolbar */}
               {leads.length > 0 && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Daftar Prospek
-                    </h3>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-mono tabular-nums bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-                      {filteredLeads.length} tempat
-                    </span>
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                        Daftar Prospek
+                      </h3>
+                      <span className="px-2 py-0.5 rounded text-[11px] font-mono tabular-nums bg-slate-100 text-slate-700 border border-slate-200 font-medium">
+                        {filteredLeads.length} tempat
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={handleDownloadWaList}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition cursor-pointer"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>Download List WA (.txt)</span>
+                      </button>
+                      <button
+                        onClick={handleDownloadCsv}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition cursor-pointer"
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5 text-slate-400" />
+                        <span>Export CSV</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={handleDownloadWaList}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition cursor-pointer"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      <span>Download List WA (.txt)</span>
-                    </button>
-                    <button
-                      onClick={handleDownloadCsv}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition cursor-pointer"
-                    >
-                      <FileSpreadsheet className="h-3.5 w-3.5 text-slate-400" />
-                      <span>Export CSV</span>
-                    </button>
+                  {/* Super Quick Filter Tabs */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <button
+                        onClick={() => setQuickPresetFilter('all')}
+                        className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer text-[11px] ${
+                          quickPresetFilter === 'all'
+                            ? 'bg-slate-900 text-white font-semibold'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        Semua ({leads.length})
+                      </button>
+                      <button
+                        onClick={() => setQuickPresetFilter('hot')}
+                        className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer text-[11px] ${
+                          quickPresetFilter === 'hot'
+                            ? 'bg-amber-600 text-white font-semibold'
+                            : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                        }`}
+                      >
+                        Hot Leads (4.5+ & Tanpa Web)
+                      </button>
+                      <button
+                        onClick={() => setQuickPresetFilter('wa_ready')}
+                        className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer text-[11px] ${
+                          quickPresetFilter === 'wa_ready'
+                            ? 'bg-emerald-600 text-white font-semibold'
+                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                        }`}
+                      >
+                        Siap WhatsApp ({stats.validWa})
+                      </button>
+                      <button
+                        onClick={() => setQuickPresetFilter('uncontacted')}
+                        className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer text-[11px] ${
+                          quickPresetFilter === 'uncontacted'
+                            ? 'bg-blue-600 text-white font-semibold'
+                            : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+                        }`}
+                      >
+                        Belum Dikontak
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs">
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer font-medium text-slate-700 select-none text-[11px]">
+                        <input
+                          type="checkbox"
+                          checked={filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length}
+                          onChange={() => toggleSelectAll(filteredLeads)}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span>Pilih Semua ({filteredLeads.length})</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1434,14 +1614,25 @@ export default function LeadFinderApp() {
                     const cleanP = phone.cleaned;
                     const pastRecord = cleanP ? phoneRegistry[cleanP] : null;
 
+                    const isSelected = selectedLeadIds.includes(lead.id);
+
                     return (
                       <div
                         key={lead.id}
-                        className={`bg-white rounded-xl border p-4 transition shadow-xs hover:border-slate-300 ${
-                          !lead.hasWebsite ? 'border-amber-200/80' : 'border-slate-200'
+                        className={`bg-white rounded-xl border p-4 transition shadow-xs hover:border-slate-300 flex items-start gap-3 ${
+                          isSelected ? 'border-emerald-500 bg-emerald-50/10' : !lead.hasWebsite ? 'border-amber-200/80' : 'border-slate-200'
                         }`}
                       >
-                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                        <div className="pt-1">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleLeadSelect(lead.id)}
+                            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="flex-1 min-w-0 flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                           {/* Info Column */}
                           <div className="flex-1 min-w-0 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-2">
@@ -1566,6 +1757,15 @@ export default function LeadFinderApp() {
                               </button>
 
                               <button
+                                onClick={() => openCopilotForLead(lead)}
+                                className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-purple-200 bg-white hover:bg-purple-50 text-purple-700 text-xs font-medium transition cursor-pointer"
+                                title="Buka Copilot untuk balas chat klien ini"
+                              >
+                                <MessageSquareQuote className="h-3.5 w-3.5" />
+                                <span>Balas AI</span>
+                              </button>
+
+                              <button
                                 onClick={() => handleOpenPreview(lead)}
                                 className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition cursor-pointer"
                                 title="Preview Draf Pesan"
@@ -1650,13 +1850,57 @@ export default function LeadFinderApp() {
                   </p>
                 </div>
               ) : null}
+
+              {/* Sticky Batch Action Bar */}
+              {selectedLeadIds.length > 0 && (
+                <div className="sticky bottom-4 z-30 bg-slate-900 text-white rounded-xl p-3.5 shadow-xl border border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-bottom-3 duration-150">
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-6 w-6 rounded-full bg-emerald-500 text-slate-950 font-bold text-xs flex items-center justify-center font-mono">
+                      {selectedLeadIds.length}
+                    </span>
+                    <span className="text-xs font-semibold">Prospek Terpilih</span>
+                    {batchProgress && (
+                      <span className="text-[11px] text-emerald-400 font-mono">
+                        (Proses {batchProgress.current}/{batchProgress.total}...)
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={handleBatchGenerateAi}
+                      disabled={isBatchGenerating || isBatchSending}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold text-xs transition cursor-pointer"
+                    >
+                      <Bot className="h-3.5 w-3.5" />
+                      <span>{isBatchGenerating ? 'Membuat AI...' : `Draf AI Semua (${selectedLeadIds.length})`}</span>
+                    </button>
+
+                    <button
+                      onClick={handleBatchSendWhatsApp}
+                      disabled={isBatchGenerating || isBatchSending}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs transition cursor-pointer"
+                    >
+                      <Zap className="h-3.5 w-3.5 fill-current" />
+                      <span>{isBatchSending ? 'Mengirim...' : `Kirim WA Semua (Delay 3s)`}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setSelectedLeadIds([])}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white text-xs transition cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
           {/* TAB 2: PIPELINE CRM */}
           {activeTab === 'crm' && (
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Pipeline CRM Outreach</h3>
                   <p className="text-xs text-slate-500">
@@ -1666,19 +1910,73 @@ export default function LeadFinderApp() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleDownloadWaList}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition cursor-pointer"
                   >
                     <Download className="h-3.5 w-3.5" />
                     <span>Download WA List</span>
                   </button>
                   <button
                     onClick={handleDownloadCsv}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition cursor-pointer"
                   >
                     <FileSpreadsheet className="h-3.5 w-3.5 text-slate-400" />
                     <span>Export CSV</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Status Filter Tabs in CRM */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <button
+                  onClick={() => setCrmStatusFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer text-[11px] ${
+                    crmStatusFilter === 'all'
+                      ? 'bg-slate-900 text-white font-semibold'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  Semua Prospek ({savedLeadsCrm.length})
+                </button>
+                <button
+                  onClick={() => setCrmStatusFilter('new')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer text-[11px] ${
+                    crmStatusFilter === 'new'
+                      ? 'bg-blue-600 text-white font-semibold'
+                      : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+                  }`}
+                >
+                  Baru ({savedLeadsCrm.filter((l) => l.status === 'new').length})
+                </button>
+                <button
+                  onClick={() => setCrmStatusFilter('contacted')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer text-[11px] ${
+                    crmStatusFilter === 'contacted'
+                      ? 'bg-emerald-600 text-white font-semibold'
+                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                  }`}
+                >
+                  Sudah Dikontak ({savedLeadsCrm.filter((l) => l.status === 'contacted').length})
+                </button>
+                <button
+                  onClick={() => setCrmStatusFilter('followup')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer text-[11px] ${
+                    crmStatusFilter === 'followup'
+                      ? 'bg-amber-600 text-white font-semibold'
+                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                  }`}
+                >
+                  Perlu Follow-up ({savedLeadsCrm.filter((l) => l.status === 'followup').length})
+                </button>
+                <button
+                  onClick={() => setCrmStatusFilter('closed')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer text-[11px] ${
+                    crmStatusFilter === 'closed'
+                      ? 'bg-indigo-600 text-white font-semibold'
+                      : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'
+                  }`}
+                >
+                  Deal / Selesai ({savedLeadsCrm.filter((l) => l.status === 'closed').length})
+                </button>
               </div>
 
               {savedLeadsCrm.length === 0 ? (
@@ -1690,7 +1988,7 @@ export default function LeadFinderApp() {
                   </p>
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs text-slate-700">
                       <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase text-[10px] font-bold">
@@ -1704,74 +2002,88 @@ export default function LeadFinderApp() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {savedLeadsCrm.map((lead) => (
-                          <tr key={lead.id} className="hover:bg-slate-50/70 transition">
-                            <td className="px-4 py-2.5 font-semibold text-slate-900">
-                              <div>{lead.name}</div>
-                              <div className="text-[11px] text-slate-400 font-normal truncate max-w-xs">
-                                {lead.formattedAddress}
-                              </div>
-                            </td>
-                            <td className="px-4 py-2.5 font-mono text-[11px]">
-                              {lead.phoneAnalysis.cleaned ? (
-                                <span className="text-emerald-700 font-medium">
-                                  {lead.phoneAnalysis.cleaned}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">-</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-2.5">
-                              {lead.hasWebsite ? (
-                                <span className="text-emerald-700 font-medium text-[11px]">Punya</span>
-                              ) : (
-                                <span className="text-amber-800 font-medium text-[11px]">Tanpa Website</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-2.5 font-mono tabular-nums text-[11px]">
-                              {lead.rating > 0 ? `${lead.rating} ★` : '-'}
-                            </td>
-                            <td className="px-4 py-2.5">
-                              <select
-                                aria-label="Status Pipeline Lead"
-                                value={lead.status}
-                                onChange={(e) =>
-                                  updateLeadStatus(lead.id, e.target.value as OutreachStatus)
-                                }
-                                className={`text-[11px] font-semibold py-1 px-2 rounded border focus:outline-none cursor-pointer ${
-                                  STATUS_CONFIG[lead.status]?.bg || 'bg-slate-50'
-                                } ${STATUS_CONFIG[lead.status]?.border || 'border-slate-200'}`}
-                              >
-                                <option value="new">Baru</option>
-                                <option value="contacted">Sudah Dikontak</option>
-                                <option value="followup">Follow-up</option>
-                                <option value="closed">Deal</option>
-                                <option value="rejected">Ditolak</option>
-                              </select>
-                            </td>
-                            <td className="px-4 py-2.5 text-right">
-                              <div className="inline-flex items-center gap-1.5 justify-end">
-                                <button
-                                  onClick={() => openCopilotForLead(lead)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[10px] border border-purple-200"
-                                  title="Buat balasan otomatis cerdas untuk chat klien ini"
-                                >
-                                  <MessageSquareQuote className="h-3 w-3" />
-                                  <span>Balas AI</span>
-                                </button>
+                        {savedLeadsCrm
+                          .filter((l) => crmStatusFilter === 'all' || l.status === crmStatusFilter)
+                          .map((lead) => {
+                            const cleanP = lead.phoneAnalysis.cleaned;
+                            const isContactedBefore = cleanP ? Boolean(phoneRegistry[cleanP]) : false;
 
-                                <button
-                                  onClick={() => handleAutoSendWhatsApp(lead)}
-                                  disabled={!lead.phoneAnalysis.isMobile || dispatchCooldown > 0}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px]"
-                                >
-                                  <Zap className="h-3 w-3 fill-current" />
-                                  <span>Kirim WA</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                            return (
+                              <tr key={lead.id} className="hover:bg-slate-50/70 transition">
+                                <td className="px-4 py-2.5 font-semibold text-slate-900">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{lead.name}</span>
+                                    {isContactedBefore && (
+                                      <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded font-normal border border-blue-200">
+                                        Pernah Chat
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-slate-400 font-normal truncate max-w-xs">
+                                    {lead.formattedAddress}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2.5 font-mono text-[11px]">
+                                  {lead.phoneAnalysis.cleaned ? (
+                                    <span className="text-emerald-700 font-medium">
+                                      {lead.phoneAnalysis.cleaned}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400">-</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  {lead.hasWebsite ? (
+                                    <span className="text-emerald-700 font-medium text-[11px]">Punya</span>
+                                  ) : (
+                                    <span className="text-amber-800 font-medium text-[11px]">Tanpa Website</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2.5 font-mono tabular-nums text-[11px]">
+                                  {lead.rating > 0 ? `${lead.rating} ★` : '-'}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <select
+                                    aria-label="Status Pipeline Lead"
+                                    value={lead.status}
+                                    onChange={(e) =>
+                                      updateLeadStatus(lead.id, e.target.value as OutreachStatus)
+                                    }
+                                    className={`text-[11px] font-semibold py-1 px-2 rounded border focus:outline-none cursor-pointer ${
+                                      STATUS_CONFIG[lead.status]?.bg || 'bg-slate-50'
+                                } ${STATUS_CONFIG[lead.status]?.border || 'border-slate-200'}`}
+                                  >
+                                    <option value="new">Baru</option>
+                                    <option value="contacted">Sudah Dikontak</option>
+                                    <option value="followup">Follow-up</option>
+                                    <option value="closed">Deal</option>
+                                    <option value="rejected">Ditolak</option>
+                                  </select>
+                                </td>
+                                <td className="px-4 py-2.5 text-right">
+                                  <div className="inline-flex items-center gap-1.5 justify-end">
+                                    <button
+                                      onClick={() => openCopilotForLead(lead)}
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[10px] border border-purple-200 cursor-pointer"
+                                      title="Buat balasan otomatis cerdas untuk chat klien ini"
+                                    >
+                                      <MessageSquareQuote className="h-3 w-3" />
+                                      <span>Balas AI</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => handleAutoSendWhatsApp(lead)}
+                                      disabled={!lead.phoneAnalysis.isMobile || dispatchCooldown > 0}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] cursor-pointer"
+                                    >
+                                      <Zap className="h-3 w-3 fill-current" />
+                                      <span>{lead.status === 'contacted' ? 'Kirim Lagi' : 'Kirim WA'}</span>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                       </tbody>
                     </table>
                   </div>
