@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search,
-  Building2,
   Phone,
   PhoneCall,
   Globe,
@@ -35,6 +34,8 @@ import {
   Menu,
   X,
   Smartphone,
+  Flame,
+  Rocket,
 } from 'lucide-react';
 import {
   generateOutreachMessage,
@@ -76,6 +77,94 @@ const PRESET_CATEGORIES = [
   { label: 'UMKM Produk (Konveksi, Sablon, Baju)', query: 'Konveksi Sablon' },
   { label: 'Kuliner & Katering (Catering, Bakery)', query: 'Katering Bakery' },
   { label: 'Florist & Bunga (Buket, Souvenir)', query: 'Florist Toko Bunga' },
+];
+
+export interface CuratedRecommendation {
+  id: string;
+  title: string;
+  city: string;
+  query: string;
+  category: OutreachCategory;
+  categoryName: string;
+  tag: string;
+  opportunityBadge: string;
+  description: string;
+  iconBg: string;
+}
+
+const CURATED_RECOMMENDATIONS: CuratedRecommendation[] = [
+  {
+    id: 'bimbel-malang',
+    title: 'Bimbel & Kursus Bahasa',
+    city: 'Malang',
+    query: 'Bimbel Kursus di Malang',
+    category: 'jasa',
+    categoryName: 'Pendidikan / Jasa',
+    tag: 'Kota Pelajar',
+    opportunityBadge: '🔥 Potensi Deal 85%',
+    description: 'Bimbel butuh landing page resmi untuk menampilkan info program, jadwal kelas, dan pendaftaran online.',
+    iconBg: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  },
+  {
+    id: 'konveksi-bandung',
+    title: 'Konveksi & Sablon Kaos',
+    city: 'Bandung',
+    query: 'Konveksi Sablon di Bandung',
+    category: 'umkm',
+    categoryName: 'UMKM / Retail',
+    tag: 'Pusat Fashion',
+    opportunityBadge: '⚡ Order Cepat',
+    description: 'Konveksi sangat butuh website katalog portofolio bahan, ukuran & price list agar hemat waktu balas chat.',
+    iconBg: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  },
+  {
+    id: 'klinik-surabaya',
+    title: 'Klinik Gigi & Dokter',
+    city: 'Surabaya',
+    query: 'Klinik Gigi Dokter di Surabaya',
+    category: 'jasa',
+    categoryName: 'Kesehatan / Medis',
+    tag: 'Metropolitan',
+    opportunityBadge: '💎 Nilai Proyek Tinggi',
+    description: 'Klinik kesehatan butuh website resmi untuk kredibilitas pencarian Google & booking konsultasi pasien.',
+    iconBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  },
+  {
+    id: 'katering-solo',
+    title: 'Katering & Bakery',
+    city: 'Solo',
+    query: 'Katering Bakery di Solo',
+    category: 'umkm',
+    categoryName: 'Kuliner / Catering',
+    tag: 'Event & Wedding',
+    opportunityBadge: '🛒 Katalog Menu',
+    description: 'Katering membutuhkan katalog paket prasmanan & hampers yang bisa langsung diakses calon pengantin.',
+    iconBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  },
+  {
+    id: 'bengkel-semarang',
+    title: 'Bengkel & Detailing Mobil',
+    city: 'Semarang',
+    query: 'Bengkel Otomotif di Semarang',
+    category: 'jasa',
+    categoryName: 'Otomotif & Servis',
+    tag: 'Jasa Rutin',
+    opportunityBadge: '🚗 Repeat Customer',
+    description: 'Bengkel mobil butuh landing page Google Maps untuk menarik pemilik mobil baru yang mencari servis terdekat.',
+    iconBg: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  },
+  {
+    id: 'florist-jogja',
+    title: 'Florist & Buket Wisuda',
+    city: 'Jogja',
+    query: 'Florist Toko Bunga di Jogja',
+    category: 'umkm',
+    categoryName: 'Florist / Souvenir',
+    tag: 'Musim Wisuda',
+    opportunityBadge: '🎓 Mahasiswa & Event',
+    description: 'Toko bunga butuh galeri katalog buket siap kirim instan untuk mahasiswa dan acara wisuda kampus.',
+    iconBg: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
+  },
 ];
 
 const STATUS_CONFIG: Record<
@@ -909,7 +998,7 @@ export default function LeadFinderApp() {
                   <button
                     type="submit"
                     disabled={isLoading || !query.trim()}
-                    className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition cursor-pointer"
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition cursor-pointer shrink-0"
                   >
                     {isLoading ? (
                       <>
@@ -924,6 +1013,26 @@ export default function LeadFinderApp() {
                     )}
                   </button>
                 </form>
+
+                {/* Quick Recommendation Chips */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                  <span className="text-amber-400 font-bold flex items-center gap-1 shrink-0">
+                    <Flame className="h-3.5 w-3.5 text-amber-400" />
+                    Rekomendasi Cepat:
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {CURATED_RECOMMENDATIONS.slice(0, 5).map((rec) => (
+                      <button
+                        key={rec.id}
+                        onClick={() => handleApplyPreset(rec.query.replace(` di ${rec.city}`, ''), rec.city)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-emerald-400 border border-slate-750 transition cursor-pointer text-[11px] font-medium"
+                      >
+                        <span>{rec.title}</span>
+                        <span className="text-[10px] text-slate-500">({rec.city})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Filter switches */}
                 <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-800 text-xs">
@@ -1257,35 +1366,59 @@ export default function LeadFinderApp() {
                   </p>
                 </div>
               ) : (
-                <div className="text-center py-16 bg-slate-900/60 rounded-2xl border border-slate-800/80 p-8 space-y-4">
-                  <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mx-auto">
-                    <Building2 className="h-7 w-7" />
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <Flame className="h-4 w-4 text-amber-400" />
+                        Rekomendasi Sektor Siap Eksekusi (High Closing Opportunity)
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Pilih target sektor di bawah ini untuk mencari data prospek secara instan tanpa perlu mengetik manual.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-white">Mulai Cari Prospek Bisnis</h3>
-                    <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                      Pilih preset kota atau ketik pencarian kustom untuk menemukan bisnis lokal tanpa website.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap justify-center gap-2 max-w-lg mx-auto pt-2">
-                    <button
-                      onClick={() => handleApplyPreset('Bimbel Kursus', 'Malang')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-300 transition"
-                    >
-                      Bimbel di Malang
-                    </button>
-                    <button
-                      onClick={() => handleApplyPreset('Konveksi Sablon', 'Bandung')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-300 transition"
-                    >
-                      Konveksi di Bandung
-                    </button>
-                    <button
-                      onClick={() => handleApplyPreset('Bengkel Otomotif', 'Surabaya')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-300 transition"
-                    >
-                      Bengkel di Surabaya
-                    </button>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {CURATED_RECOMMENDATIONS.map((rec) => (
+                      <div
+                        key={rec.id}
+                        className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between space-y-4 transition shadow-sm hover:shadow-md"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-white">{rec.title}</span>
+                            </div>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 whitespace-nowrap">
+                              {rec.opportunityBadge}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-300 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-750">
+                              <MapPin className="h-3 w-3 text-emerald-400" />
+                              {rec.city}
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              {rec.categoryName}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            {rec.description}
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() => handleApplyPreset(rec.query.replace(` di ${rec.city}`, ''), rec.city)}
+                          className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/30 hover:border-emerald-500 font-bold text-xs transition cursor-pointer"
+                        >
+                          <Rocket className="h-3.5 w-3.5" />
+                          <span>Eksekusi Prospek {rec.city}</span>
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
