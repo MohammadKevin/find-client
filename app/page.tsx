@@ -78,6 +78,53 @@ const POPULAR_CITIES = [
   'Denpasar',
 ];
 
+export interface RegionGroup {
+  region: string;
+  cities: string[];
+}
+
+export const INDONESIA_REGIONS: RegionGroup[] = [
+  {
+    region: 'Jawa Timur',
+    cities: ['Malang', 'Surabaya', 'Sidoarjo', 'Kediri', 'Jember', 'Batu', 'Madiun'],
+  },
+  {
+    region: 'Jabodetabek & Jabar',
+    cities: ['Jakarta', 'Bandung', 'Bekasi', 'Tangerang', 'Depok', 'Bogor', 'Cirebon'],
+  },
+  {
+    region: 'Jawa Tengah & DIY',
+    cities: ['Semarang', 'Solo', 'Jogja', 'Purwokerto', 'Magelang', 'Kudus', 'Tegal'],
+  },
+  {
+    region: 'Sumatera',
+    cities: ['Medan', 'Palembang', 'Pekanbaru', 'Batam', 'Padang', 'Lampung', 'Banda Aceh'],
+  },
+  {
+    region: 'Bali & Nusa Tenggara',
+    cities: ['Denpasar', 'Badung', 'Mataram', 'Kupang'],
+  },
+  {
+    region: 'Kalimantan',
+    cities: ['Samarinda', 'Balikpapan', 'Banjarmasin', 'Pontianak'],
+  },
+  {
+    region: 'Sulawesi & Indonesia Timur',
+    cities: ['Makassar', 'Manado', 'Palu', 'Kendari', 'Jayapura', 'Ambon'],
+  },
+];
+
+export const BULK_CATEGORIES = [
+  { id: 'bimbel', label: 'Bimbel & Kursus', query: 'Bimbel Kursus' },
+  { id: 'klinik', label: 'Klinik & Dokter', query: 'Klinik Dokter' },
+  { id: 'konveksi', label: 'Konveksi & Sablon', query: 'Konveksi Sablon' },
+  { id: 'bengkel', label: 'Bengkel & Otomotif', query: 'Bengkel Otomotif' },
+  { id: 'katering', label: 'Katering & Bakery', query: 'Katering Bakery' },
+  { id: 'florist', label: 'Florist & Buket', query: 'Florist Toko Bunga' },
+  { id: 'percetakan', label: 'Percetakan Digital', query: 'Percetakan Digital Printing' },
+  { id: 'salon', label: 'Salon & Barbershop', query: 'Salon Barbershop' },
+];
+
 const PRESET_CATEGORIES = [
   { label: 'Semua Kategori', query: '' },
   { label: 'Bimbel & Kursus', query: 'Bimbel Kursus' },
@@ -306,6 +353,30 @@ export default function LeadFinderApp() {
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [quickPresetFilter, setQuickPresetFilter] = useState<'all' | 'hot' | 'wa_ready' | 'uncontacted'>('all');
 
+  // Bulk Multi-City & Multi-Category Scraping State (Seluruh Indonesia)
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkCities, setBulkCities] = useState<string[]>([
+    'Malang',
+    'Surabaya',
+    'Bandung',
+    'Medan',
+    'Makassar',
+    'Semarang',
+  ]);
+  const [bulkCategories, setBulkCategories] = useState<string[]>([
+    'Bimbel Kursus',
+    'Konveksi Sablon',
+    'Klinik Dokter',
+  ]);
+  const [isBulkScraping, setIsBulkScraping] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{
+    current: number;
+    total: number;
+    currentQuery: string;
+    foundCount: number;
+  } | null>(null);
+  const abortBulkRef = useRef(false);
+
   // PIN Authentication Logic
   const handlePinInput = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
@@ -512,6 +583,105 @@ export default function LeadFinderApp() {
     const combined = catQuery ? `${catQuery} di ${city}` : `Bisnis di ${city}`;
     setQuery(combined);
     executeSearch(combined);
+  };
+
+  const handleRunBulkScraper = async () => {
+    if (bulkCities.length === 0 || bulkCategories.length === 0) {
+      showToast('error', 'Pilih minimal 1 kota dan 1 kategori untuk bulk scraping.');
+      return;
+    }
+
+    const combinations: { query: string; city: string; catQuery: string }[] = [];
+    for (const city of bulkCities) {
+      for (const cat of bulkCategories) {
+        combinations.push({
+          query: `${cat} di ${city}`,
+          city,
+          catQuery: cat,
+        });
+      }
+    }
+
+    setIsBulkScraping(true);
+    abortBulkRef.current = false;
+    let totalFound = 0;
+    const aggregatedLeads: LeadWithMeta[] = [...leads];
+    const existingIds = new Set(aggregatedLeads.map((l) => l.id));
+    const existingPhones = new Set(
+      aggregatedLeads.map((l) => l.phoneAnalysis.cleaned).filter(Boolean)
+    );
+
+    setBulkProgress({
+      current: 0,
+      total: combinations.length,
+      currentQuery: combinations[0].query,
+      foundCount: 0,
+    });
+
+    for (let i = 0; i < combinations.length; i++) {
+      if (abortBulkRef.current) break;
+
+      const item = combinations[i];
+      setBulkProgress({
+        current: i + 1,
+        total: combinations.length,
+        currentQuery: item.query,
+        foundCount: totalFound,
+      });
+
+      try {
+        const res = await fetch('/api/places', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: item.query,
+            apiKey: serpApiKey || undefined,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.places)) {
+          for (const p of data.places as PlaceLead[]) {
+            const cleanP = p.phoneAnalysis.cleaned;
+            // Deduplicate
+            if (!existingIds.has(p.id) && (!cleanP || !existingPhones.has(cleanP))) {
+              existingIds.add(p.id);
+              if (cleanP) existingPhones.add(cleanP);
+
+              const detected = detectCategory(p.name, item.query);
+              const phoneMemory = cleanP ? phoneRegistry[cleanP] : null;
+              let determinedStatus = savedStatuses[p.id] || 'new';
+              if (phoneMemory && determinedStatus === 'new') {
+                determinedStatus = phoneMemory.status;
+              }
+
+              const leadObj: LeadWithMeta = {
+                ...p,
+                status: determinedStatus,
+                selectedCategory: detected,
+                addedAt: new Date().toLocaleDateString('id-ID'),
+              };
+              aggregatedLeads.unshift(leadObj);
+              saveLeadToCrm(leadObj);
+              totalFound++;
+            }
+          }
+          setLeads([...aggregatedLeads]);
+        }
+      } catch {}
+
+      if (i < combinations.length - 1 && !abortBulkRef.current) {
+        await new Promise((r) => setTimeout(r, 600));
+      }
+    }
+
+    setIsBulkScraping(false);
+    setBulkProgress(null);
+    setShowBulkModal(false);
+    showToast(
+      'success',
+      `Bulk Scraper Selesai: Mengumpulkan ${totalFound} prospek baru dari ${bulkCities.length} kota!`
+    );
   };
 
   const filteredLeads = useMemo(() => {
@@ -1315,9 +1485,19 @@ export default function LeadFinderApp() {
 
               {/* Scraper & Control Bar (F-01) */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
-                {/* Presets & Cities */}
+                {/* Presets & Cities + Bulk Scraper Trigger */}
                 <div className="space-y-2">
-                  <span className="text-[11px] font-medium text-slate-500">Preset Kategori & Kota Populer:</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-medium text-slate-500">Preset Kategori & Kota Populer:</span>
+                    <button
+                      onClick={() => setShowBulkModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs border border-emerald-200 shadow-xs transition cursor-pointer"
+                    >
+                      <Zap className="h-3.5 w-3.5 fill-emerald-600 text-emerald-600" />
+                      <span>Bulk Scraper (Multi-Kota Indonesia)</span>
+                    </button>
+                  </div>
+                  
                   <div className="flex flex-wrap gap-2 items-center">
                     <div className="relative inline-block">
                       <select
@@ -2665,6 +2845,301 @@ export default function LeadFinderApp() {
                     <>
                       <Zap className="h-3 w-3 fill-current" />
                       <span>Kirim Otomatis (Fonnte)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Scraper Studio Modal (Seluruh Indonesia) */}
+      {showBulkModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in duration-100">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <Zap className="h-5 w-5 fill-emerald-600 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">
+                    Bulk Auto-Scraper (Seluruh Indonesia)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Kombinasi multi-kota & multi-kategori untuk mengumpulkan ratusan prospek sekaligus.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (isBulkScraping) abortBulkRef.current = true;
+                  setShowBulkModal(false);
+                }}
+                className="text-slate-400 hover:text-slate-600 text-lg leading-none cursor-pointer p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto flex-1 space-y-5 text-xs text-slate-700">
+              {/* Active Progress during Run */}
+              {isBulkScraping && bulkProgress && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2.5 animate-pulse">
+                  <div className="flex items-center justify-between font-semibold text-emerald-900">
+                    <span className="flex items-center gap-2">
+                      <RefreshCw className="h-4 w-4 animate-spin text-emerald-700" />
+                      Sedang Scraping: {bulkProgress.currentQuery}
+                    </span>
+                    <span className="font-mono">
+                      {bulkProgress.current}/{bulkProgress.total} ({Math.round((bulkProgress.current / bulkProgress.total) * 100)}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-emerald-200/60 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                      style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-emerald-800">
+                    <span>Total Prospek Baru Terkumpul: <strong className="font-mono">{bulkProgress.foundCount} tempat</strong></span>
+                    <button
+                      onClick={() => {
+                        abortBulkRef.current = true;
+                        showToast('error', 'Membatalkan bulk scraper...');
+                      }}
+                      className="text-red-700 hover:underline font-semibold cursor-pointer"
+                    >
+                      Hentikan Proses
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 1. Pilih Kategori Target */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 uppercase text-[11px] tracking-wider">
+                    1. Pilih Kategori Bisnis ({bulkCategories.length} Dipilih)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBulkCategories(BULK_CATEGORIES.map((c) => c.query))}
+                      className="text-[11px] text-emerald-700 font-semibold hover:underline cursor-pointer"
+                    >
+                      Pilih Semua Kategori
+                    </button>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={() => setBulkCategories([])}
+                      className="text-[11px] text-slate-400 hover:underline cursor-pointer"
+                    >
+                      Kosongkan
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {BULK_CATEGORIES.map((cat) => {
+                    const isChecked = bulkCategories.includes(cat.query);
+                    return (
+                      <label
+                        key={cat.id}
+                        className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs cursor-pointer transition select-none ${
+                          isChecked
+                            ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-semibold shadow-xs'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            setBulkCategories((prev) =>
+                              prev.includes(cat.query)
+                                ? prev.filter((c) => c !== cat.query)
+                                : [...prev, cat.query]
+                            );
+                          }}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="truncate">{cat.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Pilih Kota-Kota di Seluruh Indonesia */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="font-bold text-slate-900 uppercase text-[11px] tracking-wider">
+                    2. Pilih Kota Target Seluruh Indonesia ({bulkCities.length} Kota Dipilih)
+                  </span>
+                  {/* Quick City Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBulkCities([
+                          'Jakarta',
+                          'Surabaya',
+                          'Bandung',
+                          'Medan',
+                          'Semarang',
+                          'Makassar',
+                          'Palembang',
+                          'Malang',
+                          'Denpasar',
+                          'Solo',
+                        ])
+                      }
+                      className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                    >
+                      10 Kota Terbesar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const jawaCities = INDONESIA_REGIONS.filter(
+                          (r) => r.region.includes('Jawa') || r.region.includes('Jabodetabek')
+                        ).flatMap((r) => r.cities);
+                        setBulkCities(Array.from(new Set(jawaCities)));
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                    >
+                      Pulau Jawa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const luarJawa = INDONESIA_REGIONS.filter(
+                          (r) => !r.region.includes('Jawa') && !r.region.includes('Jabodetabek')
+                        ).flatMap((r) => r.cities);
+                        setBulkCities(Array.from(new Set(luarJawa)));
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                    >
+                      Luar Jawa (Sumatera/Bali/Kalimantan/Sulawesi/Timur)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allC = INDONESIA_REGIONS.flatMap((r) => r.cities);
+                        setBulkCities(Array.from(new Set(allC)));
+                      }}
+                      className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-semibold cursor-pointer"
+                    >
+                      Pilih Semua
+                    </button>
+                  </div>
+                </div>
+
+                {/* Region Groups */}
+                <div className="space-y-3">
+                  {INDONESIA_REGIONS.map((group) => {
+                    const allSelected = group.cities.every((c) => bulkCities.includes(c));
+                    return (
+                      <div
+                        key={group.region}
+                        className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-900 text-xs flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-emerald-600" />
+                            {group.region}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (allSelected) {
+                                setBulkCities((prev) => prev.filter((c) => !group.cities.includes(c)));
+                              } else {
+                                setBulkCities((prev) => Array.from(new Set([...prev, ...group.cities])));
+                              }
+                            }}
+                            className="text-[11px] text-emerald-700 hover:underline font-medium cursor-pointer"
+                          >
+                            {allSelected ? 'Batal Pilih Region' : 'Pilih Semua di Region'}
+                          </button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5">
+                          {group.cities.map((city) => {
+                            const isCityChecked = bulkCities.includes(city);
+                            return (
+                              <button
+                                key={city}
+                                type="button"
+                                onClick={() => {
+                                  setBulkCities((prev) =>
+                                    prev.includes(city)
+                                      ? prev.filter((c) => c !== city)
+                                      : [...prev, city]
+                                  );
+                                }}
+                                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer border ${
+                                  isCityChecked
+                                    ? 'bg-emerald-600 text-white border-emerald-600 font-semibold shadow-xs'
+                                    : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
+                                }`}
+                              >
+                                {city}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div>
+                <span className="font-semibold text-slate-900">
+                  Estimasi: {bulkCities.length} Kota &times; {bulkCategories.length} Kategori ={' '}
+                  <strong className="text-emerald-700 font-mono">
+                    {bulkCities.length * bulkCategories.length} Pencarian Otomatis
+                  </strong>
+                </span>
+                <p className="text-[11px] text-slate-500">
+                  Semua data otomatis dideduplikasi & tersimpan ke CRM.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkModal(false)}
+                  disabled={isBulkScraping}
+                  className="px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRunBulkScraper}
+                  disabled={isBulkScraping || bulkCities.length === 0 || bulkCategories.length === 0}
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-bold shadow-xs transition cursor-pointer"
+                >
+                  {isBulkScraping ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Sedang Bulk Scraping...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4 fill-current" />
+                      <span>Mulai Bulk Auto-Scraper</span>
                     </>
                   )}
                 </button>
