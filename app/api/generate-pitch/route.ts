@@ -51,7 +51,7 @@ Instruksi Penulisan:
 6. Hindari bahasa kaku atau terlalu formal/kuno. Gunakan gaya bahasa Indonesia modern yang natural, hangat, dan profesional.
 7. Output HANYA teks pesan WhatsApp yang siap kirim tanpa tanda kutip pembuka/penutup atau penjelasan tambahan.`;
 
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+    const modelsToTry = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash-lite'];
     let generatedText = '';
     let lastError: string | null = null;
 
