@@ -609,20 +609,20 @@ export default function LeadFinderPage() {
               />
             </div>
 
-            {/* Places Key */}
+            {/* SerpApi (Google Maps Engine) Key */}
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
               <div className="flex items-center gap-1.5 font-semibold text-blue-900 mb-1">
                 <Search className="h-4 w-4 text-blue-600" />
-                Google Places API (New) Key
+                SerpApi (Google Maps) Key
               </div>
               <p className="text-slate-500 mb-2">
-                Untuk mencari daftar bisnis lokal di Google Maps. Berawalan <code className="bg-blue-50 px-1 py-0.5 rounded text-blue-800">AIzaSy...</code>
+                Pencarian Google Maps (Free tier tanpa kartu kredit di serpapi.com).
               </p>
               <input
                 type="password"
                 value={placesApiKey}
                 onChange={(e) => handleSavePlacesApiKey(e.target.value)}
-                placeholder="AIzaSy..."
+                placeholder="serpapi_key_here..."
                 className="w-full px-2.5 py-1.5 rounded-md border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>

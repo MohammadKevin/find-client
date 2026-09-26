@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cleanPhoneNumber, PhoneAnalysis } from '@/lib/phone-utils';
 
-interface GoogleDisplayName {
-  text: string;
-  languageCode?: string;
-}
-
-interface RawGooglePlace {
-  id?: string;
-  displayName?: GoogleDisplayName;
-  formattedAddress?: string;
-  nationalPhoneNumber?: string;
-  internationalPhoneNumber?: string;
-  websiteUri?: string;
+interface SerpApiPlace {
+  position?: number;
+  title?: string;
+  name?: string;
+  place_id?: string;
+  data_id?: string;
+  data_cid?: string;
+  address?: string;
+  phone?: string;
+  website?: string;
+  link?: string;
   rating?: number;
-  userRatingCount?: number;
+  reviews?: number;
+  user_ratings_total?: number;
+  type?: string;
   types?: string[];
-  primaryType?: string;
+  thumbnail?: string;
 }
 
 export interface PlaceLead {
@@ -47,86 +48,93 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const apiKey = customApiKey || process.env.GOOGLE_PLACES_API_KEY;
+    const apiKey = customApiKey || process.env.SERPAPI_API_KEY || process.env.SERP_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
         {
           error:
-            'API Key Google Places belum dikonfigurasi. Silakan isi GOOGLE_PLACES_API_KEY di .env.local atau masukkan API Key di formulir.',
+            'API Key SerpApi belum dikonfigurasi. Silakan isi SERPAPI_API_KEY di .env.local atau masukkan di menu API Gateway.',
         },
         { status: 400 }
       );
     }
 
-    const fieldMask = [
-      'places.id',
-      'places.displayName',
-      'places.formattedAddress',
-      'places.nationalPhoneNumber',
-      'places.internationalPhoneNumber',
-      'places.websiteUri',
-      'places.rating',
-      'places.userRatingCount',
-      'places.types',
-      'places.primaryType',
-    ].join(',');
+    const searchUrl = new URL('https://serpapi.com/search.json');
+    searchUrl.searchParams.set('engine', 'google_maps');
+    searchUrl.searchParams.set('q', query);
+    searchUrl.searchParams.set('hl', 'id');
+    searchUrl.searchParams.set('gl', 'id');
+    searchUrl.searchParams.set('api_key', apiKey);
 
-    const googleResponse = await fetch(
-      'https://places.googleapis.com/v1/places:searchText',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': apiKey,
-          'X-Goog-FieldMask': fieldMask,
-        },
-        body: JSON.stringify({
-          textQuery: query,
-          languageCode: 'id',
-        }),
-      }
-    );
+    const serpResponse = await fetch(searchUrl.toString(), {
+      method: 'GET',
+    });
 
-    if (!googleResponse.ok) {
-      const errorData = await googleResponse.json().catch(() => null);
+    if (!serpResponse.ok) {
+      const errorData = await serpResponse.json().catch(() => null);
       const errorMessage =
-        errorData?.error?.message ||
-        `Google Places API mengembalikan status ${googleResponse.status}: ${googleResponse.statusText}`;
+        errorData?.error ||
+        `SerpApi mengembalikan status ${serpResponse.status}: ${serpResponse.statusText}`;
 
       return NextResponse.json(
         { error: errorMessage, details: errorData },
-        { status: googleResponse.status }
+        { status: serpResponse.status }
       );
     }
 
-    const data = await googleResponse.json();
-    const rawPlaces: RawGooglePlace[] = data.places || [];
+    const data = await serpResponse.json();
+
+    if (data.error) {
+      return NextResponse.json({ error: data.error }, { status: 400 });
+    }
+
+    const rawPlaces: SerpApiPlace[] = Array.isArray(data.local_results)
+      ? data.local_results
+      : Array.isArray(data.place_results)
+      ? data.place_results
+      : data.place_results
+      ? [data.place_results]
+      : [];
 
     const formattedPlaces: PlaceLead[] = rawPlaces.map((place, index) => {
-      const id = place.id || `place-${index}-${Date.now()}`;
-      const name = place.displayName?.text || 'Tanpa Nama';
-      const address = place.formattedAddress || 'Alamat tidak tersedia';
-      const nationalPhone = place.nationalPhoneNumber || '';
-      const internationalPhone = place.internationalPhoneNumber || '';
-      const phoneToAnalyze = internationalPhone || nationalPhone || '';
-      const phoneAnalysis = cleanPhoneNumber(phoneToAnalyze);
-      const websiteUri = place.websiteUri || null;
+      const id =
+        place.place_id ||
+        place.data_id ||
+        place.data_cid ||
+        `place-${index}-${Date.now()}`;
+      const name = place.title || place.name || 'Tanpa Nama';
+      const address = place.address || 'Alamat tidak tersedia';
+      const phone = place.phone || '';
+      const phoneAnalysis = cleanPhoneNumber(phone);
+      const websiteUri = place.website || place.link || null;
       const hasWebsite = Boolean(websiteUri && websiteUri.trim().length > 0);
+      const rating = typeof place.rating === 'number' ? place.rating : 0;
+      const userRatingCount =
+        typeof place.reviews === 'number'
+          ? place.reviews
+          : typeof place.user_ratings_total === 'number'
+          ? place.user_ratings_total
+          : 0;
+
+      const types = Array.isArray(place.types)
+        ? place.types
+        : place.type
+        ? [place.type]
+        : [];
 
       return {
         id,
         name,
         formattedAddress: address,
-        nationalPhoneNumber: nationalPhone,
-        internationalPhoneNumber: internationalPhone,
+        nationalPhoneNumber: phone,
+        internationalPhoneNumber: phone,
         websiteUri,
         hasWebsite,
-        rating: typeof place.rating === 'number' ? place.rating : 0,
-        userRatingCount:
-          typeof place.userRatingCount === 'number' ? place.userRatingCount : 0,
-        types: Array.isArray(place.types) ? place.types : [],
-        primaryType: place.primaryType || '',
+        rating,
+        userRatingCount,
+        types,
+        primaryType: place.type || (types.length > 0 ? types[0] : ''),
         phoneAnalysis,
       };
     });
