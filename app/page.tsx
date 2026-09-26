@@ -38,6 +38,7 @@ import {
   LogOut,
   History,
   MessageSquareQuote,
+  Mail,
 } from 'lucide-react';
 import {
   generateOutreachMessage,
@@ -76,6 +77,124 @@ const POPULAR_CITIES = [
   'Bekasi',
   'Tangerang',
   'Denpasar',
+];
+
+export const GLOBAL_REGIONS: RegionGroup[] = [
+  {
+    region: 'United Kingdom',
+    cities: ['London', 'Manchester', 'Birmingham', 'Leeds', 'Bristol', 'Edinburgh', 'Glasgow'],
+  },
+  {
+    region: 'Europe (Germany, France, NL)',
+    cities: ['Berlin', 'Munich', 'Paris', 'Amsterdam', 'Rotterdam', 'Dublin', 'Frankfurt', 'Vienna'],
+  },
+  {
+    region: 'United States & Canada',
+    cities: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Miami', 'Toronto', 'Vancouver'],
+  },
+  {
+    region: 'Australia & Asia-Pacific',
+    cities: ['Sydney', 'Melbourne', 'Brisbane', 'Perth', 'Singapore', 'Auckland'],
+  },
+  {
+    region: 'Middle East',
+    cities: ['Dubai', 'Abu Dhabi', 'Doha', 'Riyadh'],
+  },
+];
+
+export const GLOBAL_POPULAR_CITIES = [
+  'London',
+  'Manchester',
+  'Berlin',
+  'Amsterdam',
+  'Paris',
+  'Sydney',
+  'New York',
+  'Los Angeles',
+  'Singapore',
+  'Dubai',
+];
+
+export const GLOBAL_PRESET_CATEGORIES = [
+  { label: 'All Global Categories', query: '' },
+  { label: 'Emergency Plumbers & Heating', query: 'Plumber Heating Emergency' },
+  { label: 'Dental & Orthodontic Clinics', query: 'Dentist Dental Clinic' },
+  { label: 'Roofing & Solar Contractors', query: 'Roofing Solar Contractor' },
+  { label: 'Electricians & Smart Home', query: 'Electrician Contractor' },
+  { label: 'Auto Detailing & Ceramic Coating', query: 'Auto Detailing Ceramic' },
+  { label: 'Artisan Bakery & Specialty Cafe', query: 'Artisan Bakery Cafe' },
+  { label: 'Law Firms & Notaries / Solicitors', query: 'Law Firm Solicitor' },
+  { label: 'Landscaping & Tree Surgery', query: 'Landscaping Garden Tree' },
+  { label: 'Veterinary Clinics & Animal Care', query: 'Veterinary Clinic Vet' },
+];
+
+export const GLOBAL_RECOMMENDATIONS: CuratedRecommendation[] = [
+  {
+    id: 'plumber-london',
+    title: 'Emergency Plumbers & Heating',
+    city: 'London',
+    query: 'Emergency Plumber in London',
+    category: 'jasa',
+    categoryName: 'Home Services / Urgent',
+    tag: 'UK Market',
+    opportunityBadge: '£800 - £1,500 Ticket',
+    description: 'Emergency trade services desperately need fast mobile-friendly landing pages with tap-to-call buttons.',
+  },
+  {
+    id: 'dentist-manchester',
+    title: 'Private Dental & Cosmetic Clinics',
+    city: 'Manchester',
+    query: 'Private Dental Clinic in Manchester',
+    category: 'jasa',
+    categoryName: 'Healthcare & Medical',
+    tag: 'High Value',
+    opportunityBadge: 'High ROI Booking',
+    description: 'Cosmetic dentists require modern appointment booking engines and treatment showcase galleries.',
+  },
+  {
+    id: 'roofing-sydney',
+    title: 'Roofing & Solar Contractors',
+    city: 'Sydney',
+    query: 'Roofing Contractors in Sydney',
+    category: 'properti',
+    categoryName: 'Construction & Renovation',
+    tag: 'Australia Market',
+    opportunityBadge: '$2,000+ Deal Size',
+    description: 'Contractors need professional portfolio showcases with instant free quote estimation forms.',
+  },
+  {
+    id: 'detailing-la',
+    title: 'Auto Detailing & Ceramic Coating',
+    city: 'Los Angeles',
+    query: 'Auto Detailing in Los Angeles',
+    category: 'rental',
+    categoryName: 'Automotive Services',
+    tag: 'US Market',
+    opportunityBadge: 'High Conversion',
+    description: 'Auto detailers need visual Before/After galleries and package booking directly connected to inquiry forms.',
+  },
+  {
+    id: 'bakery-amsterdam',
+    title: 'Artisan Bakery & Coffee Shops',
+    city: 'Amsterdam',
+    query: 'Artisan Bakery in Amsterdam',
+    category: 'umkm',
+    categoryName: 'Hospitality & Food',
+    tag: 'Europe Market',
+    opportunityBadge: 'Menu & Pre-orders',
+    description: 'Local cafes need clean visual menu displays and Google Maps search conversion websites.',
+  },
+  {
+    id: 'electrician-berlin',
+    title: 'Electricians & Smart Home Tech',
+    city: 'Berlin',
+    query: 'Electrician in Berlin',
+    category: 'jasa',
+    categoryName: 'Commercial Trade',
+    tag: 'Germany Market',
+    opportunityBadge: 'High Search Volume',
+    description: 'Certified electricians benefit immensely from search-optimized profile pages with instant WhatsApp/call links.',
+  },
 ];
 
 export interface RegionGroup {
@@ -285,6 +404,9 @@ export default function LeadFinderApp() {
   const [isAppLoading, setIsAppLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('search');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Market Mode State (Indonesia vs Global/Europe)
+  const [marketMode, setMarketMode] = useState<'indo' | 'global'>('indo');
 
   // Search & Filters State
   const [query, setQuery] = useState('');
@@ -564,8 +686,26 @@ export default function LeadFinderApp() {
     );
   };
 
-  const executeSearch = async (targetQuery?: string) => {
+  const handleSwitchMarket = (mode: 'indo' | 'global') => {
+    setMarketMode(mode);
+    if (mode === 'global') {
+      setSelectedCity('London');
+      setSelectedCategoryPreset(GLOBAL_PRESET_CATEGORIES[1].query);
+      const q = 'Emergency Plumber in London';
+      setQuery(q);
+      executeSearch(q, 'global');
+    } else {
+      setSelectedCity('Surabaya');
+      setSelectedCategoryPreset(PRESET_CATEGORIES[1].query);
+      const q = 'Kos Kosan di Surabaya';
+      setQuery(q);
+      executeSearch(q, 'indo');
+    }
+  };
+
+  const executeSearch = async (targetQuery?: string, targetMode?: 'indo' | 'global') => {
     const activeQuery = (targetQuery !== undefined ? targetQuery : query).trim();
+    const activeMode = targetMode || marketMode;
     if (!activeQuery) {
       setErrorMessage('Ketik kata kunci pencarian atau pilih preset.');
       return;
@@ -581,6 +721,7 @@ export default function LeadFinderApp() {
         body: JSON.stringify({
           query: activeQuery,
           apiKey: serpApiKey || undefined,
+          marketMode: activeMode,
         }),
       });
 
@@ -788,6 +929,7 @@ export default function LeadFinderApp() {
             userRatingCount: lead.userRatingCount,
             senderName,
             senderRole,
+            marketMode,
             geminiKey: geminiApiKey || undefined,
           }),
         });
@@ -882,6 +1024,7 @@ export default function LeadFinderApp() {
           userRatingCount: lead.userRatingCount,
           senderName,
           senderRole,
+          marketMode,
           geminiKey: geminiApiKey || undefined,
         }),
       });
@@ -1449,7 +1592,7 @@ export default function LeadFinderApp() {
             </button>
             <div>
               <h1 className="text-sm font-semibold text-slate-900">
-                {activeTab === 'search' && 'Cari Prospek Google Maps'}
+                {activeTab === 'search' && (marketMode === 'global' ? 'Global Prospecting (UK, Europe, US, Aus)' : 'Cari Prospek Google Maps')}
                 {activeTab === 'crm' && 'Pipeline CRM & Prospek Tersimpan'}
                 {activeTab === 'copilot' && 'AI Response Copilot (Balas Chat Klien)'}
                 {activeTab === 'templates' && 'AI Copywriting Studio'}
@@ -1460,7 +1603,31 @@ export default function LeadFinderApp() {
           </div>
 
           <div className="flex items-center gap-2 text-xs">
-            <div className="hidden sm:flex items-center gap-2">
+            {/* Market Mode Switcher */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+              <button
+                onClick={() => handleSwitchMarket('indo')}
+                className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer text-[11px] ${
+                  marketMode === 'indo'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                🇮🇩 Indonesia
+              </button>
+              <button
+                onClick={() => handleSwitchMarket('global')}
+                className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer text-[11px] ${
+                  marketMode === 'global'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                🌍 Global & Europe
+              </button>
+            </div>
+
+            <div className="hidden lg:flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-mono">
                 <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                 <span>SerpApi Maps</span>
@@ -1487,13 +1654,15 @@ export default function LeadFinderApp() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <Target className="h-3.5 w-3.5 text-emerald-600" />
-                    Rekomendasi Sektor Berpotensi Tinggi
+                    {marketMode === 'global' ? 'High-Ticket International Niches (UK, Europe, US, Aus)' : 'Rekomendasi Sektor Berpotensi Tinggi'}
                   </span>
-                  <span className="text-[11px] text-slate-500">1-Klik Eksekusi</span>
+                  <span className="text-[11px] text-slate-500">
+                    {marketMode === 'global' ? '1-Click Overseas Scrape' : '1-Klik Eksekusi'}
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {CURATED_RECOMMENDATIONS.map((rec) => (
+                  {(marketMode === 'global' ? GLOBAL_RECOMMENDATIONS.slice(0, 3) : CURATED_RECOMMENDATIONS.slice(0, 3)).map((rec) => (
                     <div
                       key={rec.id}
                       className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between space-y-3 shadow-xs hover:border-slate-300 transition"
@@ -1519,10 +1688,10 @@ export default function LeadFinderApp() {
                       </div>
 
                       <button
-                        onClick={() => handleApplyPreset(rec.query.replace(` di ${rec.city}`, ''), rec.city)}
+                        onClick={() => handleApplyPreset(rec.query.replace(` in ${rec.city}`, '').replace(` di ${rec.city}`, ''), rec.city)}
                         className="w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-50 hover:bg-emerald-600 text-slate-700 hover:text-white border border-slate-200 hover:border-emerald-600 font-medium text-xs transition cursor-pointer"
                       >
-                        <span>Eksekusi Prospek {rec.city}</span>
+                        <span>{marketMode === 'global' ? `Scrape ${rec.city} Leads` : `Eksekusi Prospek ${rec.city}`}</span>
                         <ArrowRight className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -1535,13 +1704,15 @@ export default function LeadFinderApp() {
                 {/* Presets & Cities + Bulk Scraper Trigger */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-medium text-slate-500">Preset Kategori & Kota Populer:</span>
+                    <span className="text-[11px] font-medium text-slate-500">
+                      {marketMode === 'global' ? 'Global City & High-Ticket Niche Presets:' : 'Preset Kategori & Kota Populer:'}
+                    </span>
                     <button
                       onClick={() => setShowBulkModal(true)}
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs border border-emerald-200 shadow-xs transition cursor-pointer"
                     >
                       <Zap className="h-3.5 w-3.5 fill-emerald-600 text-emerald-600" />
-                      <span>Bulk Scraper (Multi-Kota Indonesia)</span>
+                      <span>{marketMode === 'global' ? 'Global Bulk Scraper (UK, Europe, US)' : 'Bulk Scraper (Multi-Kota Indonesia)'}</span>
                     </button>
                   </div>
                   
@@ -1553,12 +1724,13 @@ export default function LeadFinderApp() {
                         onChange={(e) => {
                           const val = e.target.value;
                           setSelectedCategoryPreset(val);
-                          const q = val ? `${val} di ${selectedCity}` : `Bisnis di ${selectedCity}`;
+                          const connector = marketMode === 'global' ? ' in ' : ' di ';
+                          const q = val ? `${val}${connector}${selectedCity}` : `Businesses in ${selectedCity}`;
                           setQuery(q);
                         }}
                         className="appearance-none bg-slate-50 text-slate-800 text-xs font-medium py-1.5 pl-3 pr-7 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                       >
-                        {PRESET_CATEGORIES.map((cat, i) => (
+                        {(marketMode === 'global' ? GLOBAL_PRESET_CATEGORIES : PRESET_CATEGORIES).map((cat, i) => (
                           <option key={i} value={cat.query}>
                             {cat.label}
                           </option>
@@ -1568,7 +1740,7 @@ export default function LeadFinderApp() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1">
-                      {POPULAR_CITIES.map((city) => (
+                      {(marketMode === 'global' ? GLOBAL_POPULAR_CITIES : POPULAR_CITIES).map((city) => (
                         <button
                           key={city}
                           onClick={() => handleApplyPreset(selectedCategoryPreset, city)}
@@ -2029,6 +2201,26 @@ export default function LeadFinderApp() {
                                 <Send className="h-3 w-3 text-slate-500" />
                                 <span>Web WA</span>
                               </button>
+
+                              {/* Direct Email Link for Overseas / Global Leads */}
+                              <a
+                                href={`mailto:?subject=${encodeURIComponent(
+                                  `Quick website proposal for ${lead.name}`
+                                )}&body=${encodeURIComponent(
+                                  lead.aiMessage ||
+                                    generateOutreachMessage({
+                                      businessName: lead.name,
+                                      category: lead.selectedCategory,
+                                      senderName,
+                                      senderRole,
+                                    })
+                                )}`}
+                                className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition cursor-pointer"
+                                title="Kirim Cold Email ke prospek luar negeri"
+                              >
+                                <Mail className="h-3 w-3 text-slate-500" />
+                                <span>Email</span>
+                              </a>
 
                               {/* Fonnte WhatsApp Dispatch with anti-ban throttle */}
                               <button
@@ -3022,74 +3214,100 @@ export default function LeadFinderApp() {
                 </div>
               </div>
 
-              {/* 2. Pilih Kota-Kota di Seluruh Indonesia */}
+              {/* 2. Pilih Kota Target */}
               <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <span className="font-bold text-slate-900 uppercase text-[11px] tracking-wider">
-                    2. Pilih Kota Target Seluruh Indonesia ({bulkCities.length} Kota Dipilih)
+                    2. Pilih Kota Target ({bulkCities.length} Kota Dipilih) — {marketMode === 'global' ? 'Global & Europe' : 'Indonesia'}
                   </span>
                   {/* Quick City Presets */}
                   <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setBulkCities([
-                          'Jakarta',
-                          'Surabaya',
-                          'Bandung',
-                          'Medan',
-                          'Semarang',
-                          'Makassar',
-                          'Palembang',
-                          'Malang',
-                          'Denpasar',
-                          'Solo',
-                        ])
-                      }
-                      className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
-                    >
-                      10 Kota Terbesar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const jawaCities = INDONESIA_REGIONS.filter(
-                          (r) => r.region.includes('Jawa') || r.region.includes('Jabodetabek')
-                        ).flatMap((r) => r.cities);
-                        setBulkCities(Array.from(new Set(jawaCities)));
-                      }}
-                      className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
-                    >
-                      Pulau Jawa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const luarJawa = INDONESIA_REGIONS.filter(
-                          (r) => !r.region.includes('Jawa') && !r.region.includes('Jabodetabek')
-                        ).flatMap((r) => r.cities);
-                        setBulkCities(Array.from(new Set(luarJawa)));
-                      }}
-                      className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
-                    >
-                      Luar Jawa (Sumatera/Bali/Kalimantan/Sulawesi/Timur)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const allC = INDONESIA_REGIONS.flatMap((r) => r.cities);
-                        setBulkCities(Array.from(new Set(allC)));
-                      }}
-                      className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-semibold cursor-pointer"
-                    >
-                      Pilih Semua
-                    </button>
+                    {marketMode === 'global' ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setBulkCities(['London', 'Manchester', 'Berlin', 'Amsterdam', 'Paris', 'Sydney', 'New York', 'Los Angeles', 'Singapore', 'Dubai'])}
+                          className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                        >
+                          Top 10 Global Hubs
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ukEu = GLOBAL_REGIONS.filter((r) => r.region.includes('Kingdom') || r.region.includes('Europe')).flatMap((r) => r.cities);
+                            setBulkCities(Array.from(new Set(ukEu)));
+                          }}
+                          className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                        >
+                          UK & Europe
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allG = GLOBAL_REGIONS.flatMap((r) => r.cities);
+                            setBulkCities(Array.from(new Set(allG)));
+                          }}
+                          className="px-2 py-0.5 rounded bg-blue-100 hover:bg-blue-200 text-blue-900 font-semibold cursor-pointer"
+                        >
+                          Pilih Semua Global ({GLOBAL_REGIONS.flatMap((r) => r.cities).length})
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setBulkCities([
+                              'Jakarta', 'Surabaya', 'Bandung', 'Medan', 'Semarang',
+                              'Makassar', 'Palembang', 'Malang', 'Denpasar', 'Solo',
+                            ])
+                          }
+                          className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                        >
+                          10 Kota Terbesar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const jawaCities = INDONESIA_REGIONS.filter(
+                              (r) => r.region.includes('Jawa') || r.region.includes('Jabodetabek')
+                            ).flatMap((r) => r.cities);
+                            setBulkCities(Array.from(new Set(jawaCities)));
+                          }}
+                          className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                        >
+                          Pulau Jawa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const luarJawa = INDONESIA_REGIONS.filter(
+                              (r) => !r.region.includes('Jawa') && !r.region.includes('Jabodetabek')
+                            ).flatMap((r) => r.cities);
+                            setBulkCities(Array.from(new Set(luarJawa)));
+                          }}
+                          className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                        >
+                          Luar Jawa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allC = INDONESIA_REGIONS.flatMap((r) => r.cities);
+                            setBulkCities(Array.from(new Set(allC)));
+                          }}
+                          className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-semibold cursor-pointer"
+                        >
+                          Pilih Semua
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* Region Groups */}
                 <div className="space-y-3">
-                  {INDONESIA_REGIONS.map((group) => {
+                  {(marketMode === 'global' ? GLOBAL_REGIONS : INDONESIA_REGIONS).map((group) => {
                     const allSelected = group.cities.every((c) => bulkCities.includes(c));
                     return (
                       <div

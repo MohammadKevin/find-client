@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
       userRatingCount = 0,
       senderName = 'Mohammad Kevin',
       senderRole = 'freelance web developer',
+      marketMode = 'indo',
       geminiKey: customGeminiKey,
     } = body;
 
@@ -24,12 +25,31 @@ export async function POST(req: NextRequest) {
 
     const apiKey = customGeminiKey || process.env.GEMINI_API_KEY;
 
-    const fallbackText = generateOutreachMessage({
-      businessName,
-      category,
-      senderName,
-      senderRole,
-    });
+    const isGlobal =
+      marketMode === 'global' ||
+      /\b(london|manchester|birmingham|berlin|munich|paris|amsterdam|dublin|sydney|melbourne|new york|los angeles|chicago|singapore|dubai|uk|usa|australia|germany|france)\b/i.test(
+        address
+      );
+
+    const fallbackText = isGlobal
+      ? `Hi ${businessName} Team,
+
+I noticed your great ${rating > 0 ? `${rating}-star ` : ''}reputation on Google Maps around ${address || 'your local area'}.
+
+I'm ${senderName}, a ${senderRole}. I noticed you don't have a modern official website linked to your Google Business profile yet.
+
+I specialize in building clean, ultra-fast, mobile-friendly websites with online booking & direct quote requests to help local businesses convert more search visitors into paying clients.
+
+Would you be open to a quick free mockup preview for ${businessName}? I'd be happy to put together a complimentary interactive design concept for you to review with zero obligation.
+
+Best regards,
+${senderName} | Web Developer`
+      : generateOutreachMessage({
+          businessName,
+          category,
+          senderName,
+          senderRole,
+        });
 
     if (!apiKey) {
       return NextResponse.json({
@@ -40,7 +60,23 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const prompt = `Anda adalah seorang copywriter sales outreach WhatsApp profesional dan ramah di Indonesia.
+    const prompt = isGlobal
+      ? `You are an expert B2B sales copywriter crafting cold outreach messages (email & WhatsApp) in professional English for an overseas freelance web developer named "${senderName}" (${senderRole}) reaching out to local business owners/managers in Europe, the UK, US, Australia, and internationally.
+
+Business Context:
+- Company Name: ${businessName}
+- Industry/Niche: ${category}
+- Location: ${address || 'Local area'}
+- Google Reviews: ${rating > 0 ? `${rating} stars (${userRatingCount} reviews)` : 'Positive reputation'}
+- Key Opportunity: Great local reputation on Google Maps, but currently missing a modern, fast, mobile-friendly official website.
+
+Writing Instructions:
+1. Warm, professional, concise, direct tone (under 120 words).
+2. Compliment their Google reputation/location genuinely.
+3. Highlight tangible business benefits: modern mobile-first landing page, instant customer booking/contact forms, Google search conversion.
+4. Frictionless Call-to-Action (Soft Offer): Offer to create a free, zero-obligation interactive preview mockup of their website.
+5. Output ONLY the ready-to-send cold outreach message text without quotation marks or extra conversational filler.`
+      : `Anda adalah seorang copywriter sales outreach WhatsApp profesional dan ramah di Indonesia.
 Tugas Anda: Buat pesan WhatsApp personalisasi, singkat, padat, sopan, dan persuasif dari seorang freelance web developer bernama "${senderName}" (${senderRole}) kepada pemilik/admin bisnis "${businessName}".
 
 Konteks Bisnis:
@@ -54,12 +90,10 @@ Instruksi Penulisan:
 1. Sapa dengan ramah (Halo Kak/Admin/Bapak/Ibu ${businessName}).
 2. Sebutkan nama saya (${senderName}, ${senderRole}).
 3. Apresiasi bisnis mereka (misal sebut lokasi/reputasi di Google Maps).
-4. Soroti keunggulan memiliki website resmi sesuai kategorinya:
-   - Jika UMKM/Kuliner/Retail: katalog visual interaktif, daftar harga tanpa tanya manual, tombol order langsung ke WA.
-   - Jika Jasa/Bimbel/Klinik/Bengkel: profil resmi, jam operasional, kredibilitas di pencarian Google, booking praktis.
+4. Soroti keunggulan memiliki website resmi sesuai kategorinya.
 5. Berikan penawaran tanpa beban (Call to Action halus): Tawaran membuatkan preview / demo desain gratis terlebih dahulu atau kirim portofolio.
-6. Hindari bahasa kaku atau terlalu formal/kuno. Gunakan gaya bahasa Indonesia modern yang natural, hangat, dan profesional.
-7. Output HANYA teks pesan WhatsApp yang siap kirim tanpa tanda kutip pembuka/penutup atau penjelasan tambahan.`;
+6. Hindari bahasa kaku. Gunakan gaya bahasa Indonesia modern yang natural, hangat, dan profesional.
+7. Output HANYA teks pesan yang siap kirim.`;
 
     const modelsToTry = [
       'gemini-2.5-flash-lite',
@@ -76,18 +110,12 @@ Instruksi Penulisan:
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [
-                {
-                  parts: [{ text: prompt }],
-                },
-              ],
+              contents: [{ parts: [{ text: prompt }] }],
               generationConfig: {
                 temperature: 0.7,
-                maxOutputTokens: 600,
+                maxOutputTokens: 500,
               },
             }),
           }
@@ -112,6 +140,7 @@ Instruksi Penulisan:
       success: true,
       businessName,
       message: finalMessage,
+      marketMode: isGlobal ? 'global' : 'indo',
       source: generatedText ? 'gemini_ai' : 'template_fallback',
     });
   } catch (error: unknown) {

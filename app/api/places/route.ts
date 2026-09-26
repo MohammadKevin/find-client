@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const query = typeof body?.query === 'string' ? body.query.trim() : '';
     const customApiKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
+    const marketMode = body?.marketMode === 'global' ? 'global' : 'indo';
 
     if (!query) {
       return NextResponse.json(
@@ -60,11 +61,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const isGlobal =
+      marketMode === 'global' ||
+      /\b(london|manchester|birmingham|leeds|berlin|munich|paris|amsterdam|rotterdam|dublin|sydney|melbourne|brisbane|new york|los angeles|chicago|houston|miami|singapore|dubai|toronto|vancouver)\b/i.test(
+        query
+      );
+
     const searchUrl = new URL('https://serpapi.com/search.json');
     searchUrl.searchParams.set('engine', 'google_maps');
     searchUrl.searchParams.set('q', query);
-    searchUrl.searchParams.set('hl', 'id');
-    searchUrl.searchParams.set('gl', 'id');
+    searchUrl.searchParams.set('hl', isGlobal ? 'en' : 'id');
+    searchUrl.searchParams.set('gl', isGlobal ? 'us' : 'id');
     searchUrl.searchParams.set('api_key', apiKey);
 
     const serpResponse = await fetch(searchUrl.toString(), {
@@ -141,6 +148,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       query,
+      marketMode: isGlobal ? 'global' : 'indo',
       total: formattedPlaces.length,
       places: formattedPlaces,
     });
