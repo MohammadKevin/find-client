@@ -431,11 +431,9 @@ export default function LeadFinderApp() {
   );
 
   const [googleSheetsUrl, setGoogleSheetsUrl] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('google_sheets_webapp_url') || process.env.NEXT_PUBLIC_LEADS_SHEET_API || '';
-    }
-    return '';
+    return process.env.NEXT_PUBLIC_LEADS_SHEET_API || '';
   });
+
   const [isSyncingSheets, setIsSyncingSheets] = useState(false);
   const [sheetsSyncInfo, setSheetsSyncInfo] = useState<{
     connected: boolean;
@@ -448,12 +446,12 @@ export default function LeadFinderApp() {
 
   const [dispatchCooldown, setDispatchCooldown] = useState<number>(0);
 
-  const [serpApiKey, setSerpApiKey] = useState('');
-  const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [fonnteToken, setFonnteToken] = useState('');
-  const [senderName, setSenderName] = useState('Mohammad Kevin');
-  const [senderRole, setSenderRole] = useState('freelance web developer');
-  const [senderEmail, setSenderEmail] = useState('mhmdkevin198@gmail.com');
+  const [serpApiKey, setSerpApiKey] = useState(process.env.SERPAPI_API_KEY || '');
+  const [geminiApiKey, setGeminiApiKey] = useState(process.env.GEMINI_API_KEY || '');
+  const [fonnteToken, setFonnteToken] = useState(process.env.FONNTE_TOKEN || '');
+  const [senderName, setSenderName] = useState(process.env.SENDER_NAME || '');
+  const [senderRole, setSenderRole] = useState(process.env.SENDER_ROLE || '');
+  const [senderEmail, setSenderEmail] = useState(process.env.SENDER_EMAIL || '');
 
   const [isLoading, setIsLoading] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
