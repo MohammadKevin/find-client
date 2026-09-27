@@ -6,7 +6,7 @@
  * FITUR UTAMA:
  * 1. Dropdown otomatis pada kolom Status_Chat:
  *    [Sudah Di-Chat, Belum Di-Chat, Perlu Follow-up, Deal / Selesai, Ditolak]
- * 2. Header rapi & format nomor otomatis Plain Text.
+ * 2. Header rapi & format nomor otomatis.
  * 3. doGet: Mengambil seluruh data leads untuk sinkronisasi Pipeline CRM.
  * 4. doPost: Update status & timestamp saat tombol "Chat WA" diklik.
  * 5. seedInitialChatted: Menandai 33 nomor riwayat awal.
@@ -40,11 +40,13 @@ function normalizePhone_(raw) {
 
 function applyStatusDropdown_(sheet, statusColIndex, startRow, numRows) {
   if (!statusColIndex || statusColIndex < 1 || !numRows || numRows < 1) return;
-  var rule = SpreadsheetApp.newDataValidation()
-    .requireValueInList(STATUS_OPTIONS, true)
-    .setAllowInvalid(true)
-    .build();
-  sheet.getRange(startRow, statusColIndex, numRows, 1).setDataValidation(rule);
+  try {
+    var rule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(STATUS_OPTIONS, true)
+      .setAllowInvalid(true)
+      .build();
+    sheet.getRange(startRow, statusColIndex, numRows, 1).setDataValidation(rule);
+  } catch (err) {}
 }
 
 function ensureColumns_() {
@@ -73,8 +75,10 @@ function ensureColumns_() {
     sheet.getRange(1, chattedCol).setValue('Chatted_At');
   }
 
-  var maxRows = Math.max(sheet.getMaxRows() - 1, 100);
-  applyStatusDropdown_(sheet, statusCol, 2, maxRows);
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    applyStatusDropdown_(sheet, statusCol, 2, Math.max(lastRow - 1, 50));
+  }
 
   return { statusCol: statusCol, chattedCol: chattedCol };
 }
@@ -131,28 +135,28 @@ function formatAndSetupSheet() {
   var cols = ensureColumns_();
   var statusCol = cols.statusCol;
 
-  sheet.setFrozenRows(1);
+  try {
+    sheet.setFrozenRows(1);
+    var headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+    headerRange
+      .setBackground('#0f172a')
+      .setFontColor('#ffffff')
+      .setFontWeight('bold')
+      .setFontFamily('Arial')
+      .setFontSize(10)
+      .setHorizontalAlignment('center')
+      .setVerticalAlignment('middle');
+    sheet.setRowHeight(1, 38);
+  } catch (err) {}
 
-  var headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
-  headerRange
-    .setBackground('#0f172a')
-    .setFontColor('#ffffff')
-    .setFontWeight('bold')
-    .setFontFamily('Arial')
-    .setFontSize(10)
-    .setHorizontalAlignment('center')
-    .setVerticalAlignment('middle');
-  sheet.setRowHeight(1, 38);
-
-  var totalRows = Math.max(sheet.getMaxRows() - 1, 100);
+  var totalRows = Math.max(sheet.getLastRow() - 1, 50);
   applyStatusDropdown_(sheet, statusCol, 2, totalRows);
 
-  var phoneCol = findPhoneColumn_();
-  sheet.getRange(2, phoneCol, totalRows, 1).setNumberFormat('@');
-
-  for (var c = 1; c <= sheet.getLastColumn(); c++) {
-    sheet.autoResizeColumn(c);
-  }
+  try {
+    for (var c = 1; c <= sheet.getLastColumn(); c++) {
+      sheet.autoResizeColumn(c);
+    }
+  } catch (err) {}
 
   SpreadsheetApp.getUi().alert('Format & Dropdown Status_Chat Berhasil Diterapkan!');
 }
