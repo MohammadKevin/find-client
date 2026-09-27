@@ -51,7 +51,6 @@ export async function POST(req: NextRequest) {
         sender = (parsed.sender || parsed.from || '').toString().trim();
         message = (parsed.message || parsed.text || '').toString().trim();
       } catch {
-        // Not JSON
       }
     }
 

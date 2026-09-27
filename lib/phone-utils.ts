@@ -48,7 +48,6 @@ export function cleanPhoneNumber(rawPhone?: string | null): PhoneAnalysis {
     };
   }
 
-  // Indonesian Number Handling
   if (rawTrimmed.startsWith('08') || rawTrimmed.startsWith('+62') || rawTrimmed.startsWith('628') || rawTrimmed.startsWith('0')) {
     let normalized = digitsOnly;
     if (normalized.startsWith('0')) {
@@ -97,7 +96,6 @@ export function cleanPhoneNumber(rawPhone?: string | null): PhoneAnalysis {
     }
   }
 
-  // International Numbers (UK +44, US +1, Germany +49, Australia +61, SG +65, UAE +971, France +33, etc.)
   let intlCleaned = digitsOnly;
   if (rawTrimmed.startsWith('+')) {
     intlCleaned = digitsOnly;
@@ -118,7 +116,7 @@ export function cleanPhoneNumber(rawPhone?: string | null): PhoneAnalysis {
       raw: rawTrimmed,
       cleaned: intlCleaned,
       isValid: true,
-      isMobile: true, // International numbers are eligible for direct WhatsApp
+      isMobile: true,
       type: 'international',
       formattedDisplay: `+${intlCleaned}`,
       notes: `Nomor Internasional (${detectedCountry})`,
@@ -149,6 +147,111 @@ export function formatIndonesianPhone(phone: string): string {
     return `+62 ${phone.slice(2)}`;
   }
   return phone;
+}
+
+export function normalizeWhatsAppNumber(rawPhone?: string | null): string {
+  if (!rawPhone || typeof rawPhone !== 'string') return '';
+  const digits = rawPhone.replace(/\D/g, '');
+  if (!digits || digits.length < 5) return '';
+
+  let normalized = digits;
+  if (normalized.startsWith('0')) {
+    normalized = '62' + normalized.slice(1);
+  } else if (normalized.startsWith('8')) {
+    normalized = '62' + normalized;
+  } else if (normalized.startsWith('620')) {
+    normalized = '62' + normalized.slice(3);
+  }
+
+  return normalized;
+}
+
+export function toLocalIdPhone(phone?: string | null): string {
+  if (!phone) return '';
+  const normalized = normalizeWhatsAppNumber(phone);
+  if (normalized.startsWith('62')) {
+    return '0' + normalized.slice(2);
+  }
+  return normalized;
+}
+
+export const INITIAL_CONTACTED_NUMBERS: string[] = [
+  '085119302628',
+  '081259528818',
+  '085100031911',
+  '085161262561',
+  '085722552212',
+  '08112109991',
+  '081321307311',
+  '085891385526',
+  '085878026341',
+  '085965982678',
+  '08992280007',
+  '085875109098',
+  '081215951695',
+  '0895384195060',
+  '08157938155',
+  '0895327003456',
+  '081130006789',
+  '081255277785',
+  '082244681797',
+  '085204226322',
+  '085755852344',
+  '085784582261',
+  '081944970885',
+  '089516564400',
+  '087859104286',
+  '08155555323',
+  '081222111388',
+  '0881036697022',
+  '08990367165',
+  '08981309325',
+  '082131008657',
+  '081334455891',
+  '08980080309',
+];
+
+export const INITIAL_CONTACTED_SET = new Set<string>(
+  INITIAL_CONTACTED_NUMBERS.map((n) => normalizeWhatsAppNumber(n)).filter(Boolean)
+);
+
+export function getInitialContactedRegistry(): Record<
+  string,
+  { cleanPhone: string; contactedAt: string; businessName: string; status: 'contacted' }
+> {
+  const result: Record<
+    string,
+    { cleanPhone: string; contactedAt: string; businessName: string; status: 'contacted' }
+  > = {};
+
+  for (const num of INITIAL_CONTACTED_NUMBERS) {
+    const clean = normalizeWhatsAppNumber(num);
+    if (clean) {
+      result[clean] = {
+        cleanPhone: clean,
+        contactedAt: new Date(2026, 0, 1).toISOString(),
+        businessName: `Prospek Riwayat (${num})`,
+        status: 'contacted',
+      };
+    }
+  }
+
+  return result;
+}
+
+export function isPhoneContacted(
+  phone?: string | null,
+  phoneRegistry?: Record<string, { status?: string }>
+): boolean {
+  if (!phone) return false;
+  const clean = normalizeWhatsAppNumber(phone);
+  if (!clean) return false;
+  if (INITIAL_CONTACTED_SET.has(clean)) return true;
+  if (phoneRegistry && phoneRegistry[clean]) {
+    const st = phoneRegistry[clean].status;
+    return st === 'contacted' || st === 'followup' || st === 'closed';
+  }
+  return false;
 }
 
 export function isValidWhatsApp(phone?: string | null): boolean {

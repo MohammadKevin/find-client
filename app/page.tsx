@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import {
   Search,
   Phone,
@@ -36,9 +36,9 @@ import {
   ArrowRight,
   Lock,
   LogOut,
-  History,
   MessageSquareQuote,
   Mail,
+  Code2,
 } from 'lucide-react';
 import {
   generateOutreachMessage,
@@ -47,6 +47,12 @@ import {
   OUTREACH_CATEGORIES,
 } from '@/lib/template-generator';
 import type { PlaceLead } from '@/app/api/places/route';
+import {
+  normalizeWhatsAppNumber,
+  isPhoneContacted,
+  getInitialContactedRegistry,
+} from '@/lib/phone-utils';
+import { GOOGLE_APPS_SCRIPT_SAMPLE_CODE } from '@/app/api/sheets/route';
 
 type ActiveTab = 'search' | 'crm' | 'copilot' | 'templates' | 'export' | 'settings';
 type OutreachStatus = 'new' | 'contacted' | 'followup' | 'closed' | 'rejected';
@@ -391,24 +397,27 @@ const STATUS_CONFIG: Record<
 };
 
 export default function LeadFinderApp() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('leadfinder_auth_pin') === '1992';
-    }
-    return false;
-  });
+  const hasMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInputs, setPinInputs] = useState(['', '', '', '']);
   const [pinError, setPinError] = useState(false);
-  const pinInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
+  const pinInputRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
 
   const [isAppLoading, setIsAppLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('search');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Market Mode State (Indonesia vs Global/Europe)
   const [marketMode, setMarketMode] = useState<'indo' | 'global'>('indo');
 
-  // Search & Filters State
   const [query, setQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('Malang');
   const [selectedCategoryPreset, setSelectedCategoryPreset] = useState(PRESET_CATEGORIES[1].query);
@@ -417,101 +426,51 @@ export default function LeadFinderApp() {
   const [minRatingFilter, setMinRatingFilter] = useState<number>(0);
   const [statusFilter, setStatusFilter] = useState<'all' | OutreachStatus>('all');
 
-  // Multi-System Phone Registry (Anti-Duplicate Check)
-  const [phoneRegistry, setPhoneRegistry] = useState<Record<string, ContactedPhoneRecord>>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('lead_phone_registry');
-        return stored ? JSON.parse(stored) : {};
-      } catch {
-        return {};
-      }
-    }
-    return {};
-  });
+  const [phoneRegistry, setPhoneRegistry] = useState<Record<string, ContactedPhoneRecord>>(() =>
+    getInitialContactedRegistry()
+  );
 
-  // Anti-ban throttling cooldown (3.0s interval)
+  const [googleSheetsUrl, setGoogleSheetsUrl] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('google_sheets_webapp_url') || process.env.NEXT_PUBLIC_LEADS_SHEET_API || '';
+    }
+    return '';
+  });
+  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+  const [sheetsSyncInfo, setSheetsSyncInfo] = useState<{
+    connected: boolean;
+    count: number;
+    lastSynced?: string;
+    error?: string | null;
+  } | null>(null);
+  const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
+  const [copiedAppsScript, setCopiedAppsScript] = useState(false);
+
   const [dispatchCooldown, setDispatchCooldown] = useState<number>(0);
 
-  // API Keys & Configuration
-  const [serpApiKey, setSerpApiKey] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('serpapi_api_key') || '';
-    }
-    return '';
-  });
-  const [geminiApiKey, setGeminiApiKey] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('gemini_api_key') || '';
-    }
-    return '';
-  });
-  const [fonnteToken, setFonnteToken] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('fonnte_api_token') || '';
-    }
-    return '';
-  });
-  const [senderName, setSenderName] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('lead_sender_name') || 'Mohammad Kevin';
-    }
-    return 'Mohammad Kevin';
-  });
-  const [senderRole, setSenderRole] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('lead_sender_role') || 'freelance web developer';
-    }
-    return 'freelance web developer';
-  });
-  const [senderEmail, setSenderEmail] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('lead_sender_email') || 'mhmdkevin198@gmail.com';
-    }
-    return 'mhmdkevin198@gmail.com';
-  });
+  const [serpApiKey, setSerpApiKey] = useState('');
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [fonnteToken, setFonnteToken] = useState('');
+  const [senderName, setSenderName] = useState('Mohammad Kevin');
+  const [senderRole, setSenderRole] = useState('freelance web developer');
+  const [senderEmail, setSenderEmail] = useState('mhmdkevin198@gmail.com');
 
-  // Action states
   const [isLoading, setIsLoading] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [generatingAiId, setGeneratingAiId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Leads Data & Saved CRM state
   const [leads, setLeads] = useState<LeadWithMeta[]>([]);
-  const [savedStatuses, setSavedStatuses] = useState<Record<string, OutreachStatus>>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('lead_outreach_statuses');
-        return stored ? JSON.parse(stored) : {};
-      } catch {
-        return {};
-      }
-    }
-    return {};
-  });
-  const [savedLeadsCrm, setSavedLeadsCrm] = useState<LeadWithMeta[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('lead_saved_crm_records');
-        return stored ? JSON.parse(stored) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  const [savedStatuses, setSavedStatuses] = useState<Record<string, OutreachStatus>>({});
+  const [savedLeadsCrm, setSavedLeadsCrm] = useState<LeadWithMeta[]>([]);
 
-  // Modals & previews
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewModalLead, setPreviewModalLead] = useState<LeadWithMeta | null>(null);
   const [editedMessage, setEditedMessage] = useState('');
 
-  // CRM Tab filter
   const [crmStatusFilter, setCrmStatusFilter] = useState<'all' | OutreachStatus>('all');
 
-  // AI Chat Copilot (Response Generator) State
   const [copilotIncomingMessage, setCopilotIncomingMessage] = useState('');
   const [copilotClientName, setCopilotClientName] = useState('');
   const [copilotCategory, setCopilotCategory] = useState<OutreachCategory>('general');
@@ -521,14 +480,14 @@ export default function LeadFinderApp() {
   const [isGeneratingCopilot, setIsGeneratingCopilot] = useState(false);
   const [isSendingCopilot, setIsSendingCopilot] = useState(false);
 
-  // Batch multi-select & quick presets
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const [isBatchSending, setIsBatchSending] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
-  const [quickPresetFilter, setQuickPresetFilter] = useState<'all' | 'hot' | 'wa_ready' | 'uncontacted'>('all');
+  const [quickPresetFilter, setQuickPresetFilter] = useState<
+    'all' | 'uncontacted' | 'contacted' | 'hot' | 'wa_ready'
+  >('all');
 
-  // Bulk Multi-City & Multi-Category Scraping State (Seluruh Indonesia)
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkCities, setBulkCities] = useState<string[]>([
     'Malang',
@@ -552,7 +511,6 @@ export default function LeadFinderApp() {
   } | null>(null);
   const abortBulkRef = useRef(false);
 
-  // PIN Authentication Logic
   const handlePinInput = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
     
@@ -594,7 +552,6 @@ export default function LeadFinderApp() {
     setIsAuthenticated(false);
   };
 
-  // Cooldown timer effect
   useEffect(() => {
     if (dispatchCooldown > 0) {
       const interval = setInterval(() => {
@@ -609,23 +566,172 @@ export default function LeadFinderApp() {
     setTimeout(() => setNotification(null), 3500);
   };
 
+  const handleSyncWithGoogleSheets = async (targetUrl?: string) => {
+    const urlToUse = targetUrl !== undefined ? targetUrl : googleSheetsUrl;
+    setIsSyncingSheets(true);
+    try {
+      const res = await fetch(
+        `/api/sheets${urlToUse ? `?sheetUrl=${encodeURIComponent(urlToUse)}` : ''}`
+      );
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (Array.isArray(data.contactedNumbers)) {
+          setPhoneRegistry((prev) => {
+            const next = { ...prev };
+            data.contactedNumbers.forEach((p: string) => {
+              if (!next[p]) {
+                next[p] = {
+                  cleanPhone: p,
+                  contactedAt: new Date().toISOString(),
+                  businessName: 'Database Kontak Google Sheets',
+                  status: 'contacted',
+                };
+              }
+            });
+            try {
+              localStorage.setItem('lead_phone_registry', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+
+          setLeads((prevLeads) =>
+            prevLeads.map((lead) => {
+              const clean =
+                lead.phoneAnalysis.cleaned || normalizeWhatsAppNumber(lead.nationalPhoneNumber);
+              if (clean && data.contactedNumbers.includes(clean) && lead.status === 'new') {
+                return { ...lead, status: 'contacted' };
+              }
+              return lead;
+            })
+          );
+        }
+
+        setSheetsSyncInfo({
+          connected: Boolean(data.sheetsConnected),
+          count: data.totalContacted || data.contactedNumbers?.length || 0,
+          lastSynced: new Date().toLocaleTimeString('id-ID'),
+          error: data.syncError,
+        });
+
+        if (data.sheetsConnected) {
+          showToast(
+            'success',
+            `Berhasil tersambung ke Google Sheets (${data.totalContacted} nomor tersinkron).`
+          );
+        } else if (urlToUse) {
+          showToast('error', data.syncError || 'Gagal tersambung ke Google Apps Script.');
+        } else {
+          showToast(
+            'success',
+            `Database lokal aktif (${data.totalContacted} riwayat nomor siap sinkron).`
+          );
+        }
+      } else {
+        showToast('error', data.error || 'Sinkronisasi gagal.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal menghubungi endpoint sinkronisasi.';
+      showToast('error', msg);
+    } finally {
+      setIsSyncingSheets(false);
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const pin = sessionStorage.getItem('leadfinder_auth_pin');
+      if (pin === '1992') {
+        setIsAuthenticated(true); // eslint-disable-line react-hooks/set-state-in-effect
+      }
+      const storedRegistry = localStorage.getItem('lead_phone_registry');
+      if (storedRegistry) {
+        setPhoneRegistry((prev) => ({ ...prev, ...JSON.parse(storedRegistry) }));
+      }
+      const storedUrl = localStorage.getItem('google_sheets_webapp_url');
+      if (storedUrl) setGoogleSheetsUrl(storedUrl);
+      const storedSerp = localStorage.getItem('serpapi_api_key');
+      if (storedSerp) setSerpApiKey(storedSerp);
+      const storedGemini = localStorage.getItem('gemini_api_key');
+      if (storedGemini) setGeminiApiKey(storedGemini);
+      const storedFonnte = localStorage.getItem('fonnte_api_token');
+      if (storedFonnte) setFonnteToken(storedFonnte);
+      const storedSender = localStorage.getItem('lead_sender_name');
+      if (storedSender) setSenderName(storedSender);
+      const storedRole = localStorage.getItem('lead_sender_role');
+      if (storedRole) setSenderRole(storedRole);
+      const storedEmail = localStorage.getItem('lead_sender_email');
+      if (storedEmail) setSenderEmail(storedEmail);
+      const storedStatuses = localStorage.getItem('lead_outreach_statuses');
+      if (storedStatuses) setSavedStatuses(JSON.parse(storedStatuses));
+      const storedCrm = localStorage.getItem('lead_saved_crm_records');
+      if (storedCrm) setSavedLeadsCrm(JSON.parse(storedCrm));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const initialSync = async () => {
+      try {
+        const res = await fetch(
+          `/api/sheets${googleSheetsUrl ? `?sheetUrl=${encodeURIComponent(googleSheetsUrl)}` : ''}`
+        );
+        const data = await res.json();
+        if (isMounted && res.ok && data.success && Array.isArray(data.contactedNumbers)) {
+          setPhoneRegistry((prev) => {
+            const next = { ...prev };
+            data.contactedNumbers.forEach((p: string) => {
+              if (!next[p]) {
+                next[p] = {
+                  cleanPhone: p,
+                  contactedAt: new Date().toISOString(),
+                  businessName: 'Database Kontak Google Sheets',
+                  status: 'contacted',
+                };
+              }
+            });
+            try {
+              localStorage.setItem('lead_phone_registry', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+
+          setSheetsSyncInfo({
+            connected: Boolean(data.sheetsConnected),
+            count: data.totalContacted || data.contactedNumbers.length || 0,
+            lastSynced: new Date().toLocaleTimeString('id-ID'),
+            error: data.syncError,
+          });
+        }
+      } catch {}
+    };
+
+    initialSync();
+    return () => {
+      isMounted = false;
+    };
+  }, [googleSheetsUrl]);
+
   const handleSaveApiKeys = () => {
     try {
       localStorage.setItem('serpapi_api_key', serpApiKey);
       localStorage.setItem('gemini_api_key', geminiApiKey);
       localStorage.setItem('fonnte_api_token', fonnteToken);
+      localStorage.setItem('google_sheets_webapp_url', googleSheetsUrl);
       localStorage.setItem('lead_sender_name', senderName);
       localStorage.setItem('lead_sender_role', senderRole);
       localStorage.setItem('lead_sender_email', senderEmail);
-      showToast('success', 'Pengaturan API & Profil berhasil disimpan.');
+      showToast('success', 'Pengaturan API, Google Sheets & Profil berhasil disimpan.');
+      if (googleSheetsUrl) {
+        handleSyncWithGoogleSheets(googleSheetsUrl);
+      }
     } catch {
       showToast('error', 'Gagal menyimpan konfigurasi ke browser storage.');
     }
   };
 
-  // Smart Contact Registration
   const registerContactHistory = (lead: LeadWithMeta, status: OutreachStatus = 'contacted') => {
-    const cleanPhone = lead.phoneAnalysis.cleaned;
+    const cleanPhone =
+      lead.phoneAnalysis.cleaned || normalizeWhatsAppNumber(lead.nationalPhoneNumber);
     if (cleanPhone) {
       setPhoneRegistry((prev) => {
         const next = {
@@ -642,6 +748,21 @@ export default function LeadFinderApp() {
         } catch {}
         return next;
       });
+
+      fetch('/api/sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: lead.nationalPhoneNumber || cleanPhone,
+          normalizedPhone: cleanPhone,
+          name: lead.name,
+          address: lead.formattedAddress,
+          category: lead.selectedCategory,
+          status: status === 'contacted' ? 'Sudah Di-Chat' : status,
+          contactedAt: new Date().toISOString(),
+          sheetUrl: googleSheetsUrl || undefined,
+        }),
+      }).catch(() => {});
     }
     updateLeadStatus(lead.id, status);
   };
@@ -741,13 +862,15 @@ export default function LeadFinderApp() {
       const formatted: LeadWithMeta[] = (data.places || []).map((p: PlaceLead) => {
         const detected = detectCategory(p.name, activeQuery);
         
-        // Smart Status Memory (Checks by Map ID or exact Phone Number)
-        const cleanP = p.phoneAnalysis.cleaned;
+        const cleanP =
+          p.phoneAnalysis.cleaned || normalizeWhatsAppNumber(p.nationalPhoneNumber);
         const phoneMemory = cleanP ? phoneRegistry[cleanP] : null;
         let determinedStatus = savedStatuses[p.id] || 'new';
 
-        if (phoneMemory && determinedStatus === 'new') {
-          determinedStatus = phoneMemory.status; // Auto-hydrate from robust phone history
+        if (cleanP && isPhoneContacted(cleanP, phoneRegistry) && determinedStatus === 'new') {
+          determinedStatus = 'contacted';
+        } else if (phoneMemory && determinedStatus === 'new') {
+          determinedStatus = phoneMemory.status;
         }
 
         const leadObj: LeadWithMeta = {
@@ -837,8 +960,8 @@ export default function LeadFinderApp() {
         const data = await res.json();
         if (res.ok && Array.isArray(data.places)) {
           for (const p of data.places as PlaceLead[]) {
-            const cleanP = p.phoneAnalysis.cleaned;
-            // Deduplicate
+            const cleanP =
+              p.phoneAnalysis.cleaned || normalizeWhatsAppNumber(p.nationalPhoneNumber);
             if (!existingIds.has(p.id) && (!cleanP || !existingPhones.has(cleanP))) {
               existingIds.add(p.id);
               if (cleanP) existingPhones.add(cleanP);
@@ -846,7 +969,9 @@ export default function LeadFinderApp() {
               const detected = detectCategory(p.name, item.query);
               const phoneMemory = cleanP ? phoneRegistry[cleanP] : null;
               let determinedStatus = savedStatuses[p.id] || 'new';
-              if (phoneMemory && determinedStatus === 'new') {
+              if (cleanP && isPhoneContacted(cleanP, phoneRegistry) && determinedStatus === 'new') {
+                determinedStatus = 'contacted';
+              } else if (phoneMemory && determinedStatus === 'new') {
                 determinedStatus = phoneMemory.status;
               }
 
@@ -881,12 +1006,22 @@ export default function LeadFinderApp() {
 
   const filteredLeads = useMemo(() => {
     return leads.filter((item) => {
-      if (quickPresetFilter === 'hot') {
+      const cleanP =
+        item.phoneAnalysis.cleaned || normalizeWhatsAppNumber(item.nationalPhoneNumber);
+      const isContactedLead =
+        (cleanP && isPhoneContacted(cleanP, phoneRegistry)) ||
+        item.status === 'contacted' ||
+        item.status === 'followup' ||
+        item.status === 'closed';
+
+      if (quickPresetFilter === 'uncontacted') {
+        if (isContactedLead || item.status !== 'new') return false;
+      } else if (quickPresetFilter === 'contacted') {
+        if (!isContactedLead && item.status === 'new') return false;
+      } else if (quickPresetFilter === 'hot') {
         if (item.hasWebsite || item.rating < 4.5) return false;
       } else if (quickPresetFilter === 'wa_ready') {
         if (!item.phoneAnalysis.isValid || !item.phoneAnalysis.isMobile) return false;
-      } else if (quickPresetFilter === 'uncontacted') {
-        if (item.status !== 'new') return false;
       }
 
       if (filterNoWebsiteOnly && item.hasWebsite) return false;
@@ -899,7 +1034,7 @@ export default function LeadFinderApp() {
       if (statusFilter !== 'all' && item.status !== statusFilter) return false;
       return true;
     });
-  }, [leads, quickPresetFilter, filterNoWebsiteOnly, filterValidWaOnly, minRatingFilter, statusFilter]);
+  }, [leads, quickPresetFilter, filterNoWebsiteOnly, filterValidWaOnly, minRatingFilter, statusFilter, phoneRegistry]);
 
   const toggleLeadSelect = (id: string) => {
     setSelectedLeadIds((prev) =>
@@ -1009,13 +1144,23 @@ export default function LeadFinderApp() {
   const stats = useMemo(() => {
     const total = leads.length;
     const noWebsite = leads.filter((l) => !l.hasWebsite).length;
-    const validWa = leads.filter((l) => l.phoneAnalysis.isValid && l.phoneAnalysis.isMobile).length;
-    const contacted = leads.filter(
-      (l) => l.status === 'contacted' || l.status === 'followup' || l.status === 'closed'
+    const validWa = leads.filter(
+      (l) => l.phoneAnalysis.isValid && l.phoneAnalysis.isMobile
     ).length;
+    const contacted = leads.filter((l) => {
+      const cleanP =
+        l.phoneAnalysis.cleaned || normalizeWhatsAppNumber(l.nationalPhoneNumber);
+      return (
+        (cleanP && isPhoneContacted(cleanP, phoneRegistry)) ||
+        l.status === 'contacted' ||
+        l.status === 'followup' ||
+        l.status === 'closed'
+      );
+    }).length;
+    const uncontacted = Math.max(0, total - contacted);
 
-    return { total, noWebsite, validWa, contacted };
-  }, [leads]);
+    return { total, noWebsite, validWa, contacted, uncontacted };
+  }, [leads, phoneRegistry]);
 
   const handleGenerateGeminiPitch = async (lead: LeadWithMeta) => {
     setGeneratingAiId(lead.id);
@@ -1075,12 +1220,14 @@ export default function LeadFinderApp() {
       setTimeout(() => setCopiedId(null), 2500);
       showToast('success', `Pesan untuk ${lead.name} tersalin ke clipboard.`);
     } catch {
-      // Fallback
     }
   };
 
   const handleOpenWhatsAppManual = (lead: LeadWithMeta) => {
-    if (!lead.phoneAnalysis.isValid || !lead.phoneAnalysis.isMobile) return;
+    if (!lead.phoneAnalysis.isValid || !lead.phoneAnalysis.isMobile) {
+      showToast('error', 'Nomor bukan WhatsApp seluler yang valid.');
+      return;
+    }
 
     const message =
       lead.aiMessage ||
@@ -1091,12 +1238,16 @@ export default function LeadFinderApp() {
         senderRole,
       });
 
-    const url = `https://wa.me/${lead.phoneAnalysis.cleaned}?text=${encodeURIComponent(message)}`;
+    const cleanPhone =
+      lead.phoneAnalysis.cleaned || normalizeWhatsAppNumber(lead.nationalPhoneNumber);
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
 
-    if (lead.status === 'new') {
-      registerContactHistory(lead, 'contacted');
-    }
+    registerContactHistory(lead, 'contacted');
+    showToast(
+      'success',
+      `Membuka WA & memperbarui status ${lead.name} menjadi "Sudah Di-Chat" (Disinkronkan ke Google Sheets).`
+    );
   };
 
   const handleAutoSendWhatsApp = async (lead: LeadWithMeta, customText?: string) => {
@@ -1139,7 +1290,6 @@ export default function LeadFinderApp() {
         throw new Error(data.error || 'Gagal mengirim pesan via WhatsApp Gateway.');
       }
 
-      // Enforce 3-second anti-ban rate limiting
       setDispatchCooldown(3);
       registerContactHistory(lead, 'contacted');
       showToast('success', `Pesan berhasil dikirim ke ${lead.name} (${lead.phoneAnalysis.cleaned}).`);
@@ -1154,6 +1304,7 @@ export default function LeadFinderApp() {
       setSendingId(null);
     }
   };
+
 
   const handleOpenPreview = (lead: LeadWithMeta) => {
     const initialText =
@@ -1320,6 +1471,22 @@ export default function LeadFinderApp() {
   };
 
   // 0. Pre-Flight Authentication Wall (PIN 1992)
+  if (!hasMounted) {
+    return (
+      <div className="min-h-screen bg-white text-slate-900 flex flex-col items-center justify-center p-6 select-none">
+        <div className="flex flex-col items-center gap-4 max-w-sm w-full text-center">
+          <div className="h-12 w-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+            <Target className="h-6 w-6" />
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-base font-semibold tracking-tight text-slate-900">LeadFinder Pro</h1>
+            <p className="text-xs text-slate-500">Memuat workspace...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated && !isAppLoading) {
     return (
       <div className="min-h-screen bg-white text-slate-900 flex flex-col items-center justify-center p-6 select-none animate-in fade-in zoom-in-95 duration-200">
@@ -1364,7 +1531,6 @@ export default function LeadFinderApp() {
     );
   }
 
-  // 1. Initial Workspace Loading Splash Screen
   if (isAppLoading) {
     return (
       <div className="min-h-screen bg-white text-slate-900 flex flex-col items-center justify-center p-6 select-none">
@@ -1386,7 +1552,6 @@ export default function LeadFinderApp() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col md:flex-row antialiased font-sans">
-      {/* Toast Notification */}
       {notification && (
         <div className="fixed bottom-5 right-5 z-50 animate-in slide-in-from-bottom-3 duration-150">
           <div
@@ -1406,14 +1571,12 @@ export default function LeadFinderApp() {
         </div>
       )}
 
-      {/* Sidebar Navigation */}
       <aside
         className={`fixed md:sticky top-0 z-40 h-screen w-64 bg-white border-r border-slate-200 flex flex-col justify-between transition-transform duration-150 ${
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         <div className="p-4 flex flex-col h-full">
-          {/* Brand Header */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
@@ -1438,7 +1601,6 @@ export default function LeadFinderApp() {
             </button>
           </div>
 
-          {/* Navigation Links */}
           <nav className="mt-4 space-y-1 flex-1">
             <button
               onClick={() => {
@@ -1568,7 +1730,6 @@ export default function LeadFinderApp() {
             </button>
           </nav>
 
-          {/* Active Profile Box */}
           <div className="pt-3 border-t border-slate-100">
             <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-200 flex items-center gap-2.5">
               <div className="h-7 w-7 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[11px] shrink-0 font-mono">
@@ -1954,43 +2115,64 @@ export default function LeadFinderApp() {
                     <div className="flex flex-wrap items-center gap-1.5 text-xs">
                       <button
                         onClick={() => setQuickPresetFilter('all')}
-                        className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer text-[11px] ${
+                        className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer text-xs flex items-center gap-1.5 ${
                           quickPresetFilter === 'all'
-                            ? 'bg-slate-900 text-white font-semibold'
+                            ? 'bg-slate-900 text-white shadow-xs'
                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                       >
-                        Semua ({leads.length})
+                        <span>Semua</span>
+                        <span className="font-mono text-[11px] opacity-80">({leads.length})</span>
                       </button>
+
                       <button
-                        onClick={() => setQuickPresetFilter('hot')}
-                        className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer text-[11px] ${
-                          quickPresetFilter === 'hot'
-                            ? 'bg-amber-600 text-white font-semibold'
-                            : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                        onClick={() => setQuickPresetFilter('uncontacted')}
+                        className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer text-xs flex items-center gap-1.5 ${
+                          quickPresetFilter === 'uncontacted'
+                            ? 'bg-amber-600 text-white shadow-xs'
+                            : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
                         }`}
                       >
-                        Hot Leads (4.5+ & Tanpa Web)
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>⏳ Belum Di-Chat</span>
+                        <span className="font-mono text-[11px] opacity-90">({stats.uncontacted})</span>
                       </button>
+
+                      <button
+                        onClick={() => setQuickPresetFilter('contacted')}
+                        className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer text-xs flex items-center gap-1.5 ${
+                          quickPresetFilter === 'contacted'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200'
+                        }`}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>✅ Sudah Di-Chat</span>
+                        <span className="font-mono text-[11px] opacity-90">({stats.contacted})</span>
+                      </button>
+
+                      <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block" />
+
                       <button
                         onClick={() => setQuickPresetFilter('wa_ready')}
                         className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer text-[11px] ${
                           quickPresetFilter === 'wa_ready'
-                            ? 'bg-emerald-600 text-white font-semibold'
-                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                            ? 'bg-teal-600 text-white font-semibold'
+                            : 'bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200'
                         }`}
                       >
-                        Siap WhatsApp ({stats.validWa})
+                        Siap WA ({stats.validWa})
                       </button>
+
                       <button
-                        onClick={() => setQuickPresetFilter('uncontacted')}
+                        onClick={() => setQuickPresetFilter('hot')}
                         className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer text-[11px] ${
-                          quickPresetFilter === 'uncontacted'
-                            ? 'bg-blue-600 text-white font-semibold'
-                            : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+                          quickPresetFilter === 'hot'
+                            ? 'bg-purple-600 text-white font-semibold'
+                            : 'bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200'
                         }`}
                       >
-                        Belum Dikontak
+                        Hot Leads (4.5★ No Web)
                       </button>
                     </div>
 
@@ -2019,8 +2201,13 @@ export default function LeadFinderApp() {
                     const isGeneratingAi = generatingAiId === lead.id;
 
                     // History check
-                    const cleanP = phone.cleaned;
-                    const pastRecord = cleanP ? phoneRegistry[cleanP] : null;
+                    const cleanP =
+                      phone.cleaned || normalizeWhatsAppNumber(lead.nationalPhoneNumber);
+                    const isContactedBefore =
+                      (cleanP && isPhoneContacted(cleanP, phoneRegistry)) ||
+                      lead.status === 'contacted' ||
+                      lead.status === 'followup' ||
+                      lead.status === 'closed';
 
                     const isSelected = selectedLeadIds.includes(lead.id);
 
@@ -2048,6 +2235,19 @@ export default function LeadFinderApp() {
                                 {lead.name}
                               </h4>
 
+                              {/* Prominent Chat Status Badge */}
+                              {isContactedBefore ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                  <span>Sudah Di-Chat</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                  <Clock className="h-3.5 w-3.5 text-amber-600" />
+                                  <span>Belum Di-Chat</span>
+                                </span>
+                              )}
+
                               {!lead.hasWebsite ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
                                   <Globe className="h-3 w-3" />
@@ -2070,12 +2270,6 @@ export default function LeadFinderApp() {
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-50 text-slate-700 border border-slate-200 font-mono tabular-nums">
                                   <Star className="h-3 w-3 fill-amber-400 text-amber-500" />
                                   {lead.rating} ({lead.userRatingCount})
-                                </span>
-                              )}
-
-                              {pastRecord && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                                  <History className="h-3 w-3" /> Pernah Dihubungi
                                 </span>
                               )}
 
@@ -2201,14 +2395,15 @@ export default function LeadFinderApp() {
                               <button
                                 onClick={() => handleOpenWhatsAppManual(lead)}
                                 disabled={!hasValidWa}
-                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition cursor-pointer ${
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer shadow-xs ${
                                   hasValidWa
-                                    ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                    ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold'
                                     : 'border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed'
                                 }`}
+                                title="Buka WhatsApp Web dan otomatis tandai Sudah Di-Chat & sinkron ke Google Sheets"
                               >
-                                <Send className="h-3 w-3 text-slate-500" />
-                                <span>Web WA</span>
+                                <Send className="h-3.5 w-3.5 text-emerald-600" />
+                                <span>Chat WA</span>
                               </button>
 
                               {/* Direct Email Link for Overseas / Global Leads */}
@@ -2433,17 +2628,26 @@ export default function LeadFinderApp() {
                         {savedLeadsCrm
                           .filter((l) => crmStatusFilter === 'all' || l.status === crmStatusFilter)
                           .map((lead) => {
-                            const cleanP = lead.phoneAnalysis.cleaned;
-                            const isContactedBefore = cleanP ? Boolean(phoneRegistry[cleanP]) : false;
+                            const cleanP =
+                              lead.phoneAnalysis.cleaned || normalizeWhatsAppNumber(lead.nationalPhoneNumber);
+                            const isContactedBefore =
+                              (cleanP && isPhoneContacted(cleanP, phoneRegistry)) ||
+                              lead.status === 'contacted' ||
+                              lead.status === 'followup' ||
+                              lead.status === 'closed';
 
                             return (
                               <tr key={lead.id} className="hover:bg-slate-50/70 transition">
                                 <td className="px-4 py-2.5 font-semibold text-slate-900">
                                   <div className="flex items-center gap-1.5">
                                     <span>{lead.name}</span>
-                                    {isContactedBefore && (
-                                      <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded font-normal border border-blue-200">
-                                        Pernah Chat
+                                    {isContactedBefore ? (
+                                      <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded font-semibold border border-emerald-200">
+                                        Sudah Di-Chat
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] bg-amber-50 text-amber-800 px-1.5 py-0.2 rounded font-medium border border-amber-200">
+                                        Belum Di-Chat
                                       </span>
                                     )}
                                   </div>
@@ -2479,7 +2683,7 @@ export default function LeadFinderApp() {
                                     }
                                     className={`text-[11px] font-semibold py-1 px-2 rounded border focus:outline-none cursor-pointer ${
                                       STATUS_CONFIG[lead.status]?.bg || 'bg-slate-50'
-                                } ${STATUS_CONFIG[lead.status]?.border || 'border-slate-200'}`}
+                                    } ${STATUS_CONFIG[lead.status]?.border || 'border-slate-200'}`}
                                   >
                                     <option value="new">Baru</option>
                                     <option value="contacted">Sudah Dikontak</option>
@@ -2490,6 +2694,16 @@ export default function LeadFinderApp() {
                                 </td>
                                 <td className="px-4 py-2.5 text-right">
                                   <div className="inline-flex items-center gap-1.5 justify-end">
+                                    <button
+                                      onClick={() => handleOpenWhatsAppManual(lead)}
+                                      disabled={!lead.phoneAnalysis.isMobile}
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-[10px] border border-emerald-300 cursor-pointer"
+                                      title="Buka WhatsApp & sinkron status"
+                                    >
+                                      <Send className="h-3 w-3 text-emerald-600" />
+                                      <span>Chat WA</span>
+                                    </button>
+
                                     <button
                                       onClick={() => openCopilotForLead(lead)}
                                       className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[10px] border border-purple-200 cursor-pointer"
@@ -2505,7 +2719,7 @@ export default function LeadFinderApp() {
                                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] cursor-pointer"
                                     >
                                       <Zap className="h-3 w-3 fill-current" />
-                                      <span>{lead.status === 'contacted' ? 'Kirim Lagi' : 'Kirim WA'}</span>
+                                      <span>{lead.status === 'contacted' ? 'Kirim Lagi' : 'Kirim Otomatis'}</span>
                                     </button>
                                   </div>
                                 </td>
@@ -2945,6 +3159,90 @@ export default function LeadFinderApp() {
                   <p className="text-[11px] text-slate-400">
                     Token perangkat Fonnte untuk mengirim pesan langsung dari nomor WhatsApp Anda.
                   </p>
+                </div>
+
+                {/* Google Sheets Backend Sync Card */}
+                <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-700" />
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                        Integrasi Google Sheets Backend (Status_Chat)
+                      </h4>
+                    </div>
+                    {sheetsSyncInfo && (
+                      <span
+                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                          sheetsSyncInfo.connected
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : 'bg-amber-100 text-amber-900 border-amber-300'
+                        }`}
+                      >
+                        {sheetsSyncInfo.connected ? (
+                          <>
+                            <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                            <span>Terhubung ({sheetsSyncInfo.count} Nomor Terdata)</span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="h-3 w-3 text-amber-600" />
+                            <span>Lokal Standalone ({sheetsSyncInfo.count} Nomor Riwayat)</span>
+                          </>
+                        )}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Setiap kali Anda menekan tombol <strong className="text-slate-800">&quot;Chat WA&quot;</strong>, status lead otomatis dicatat ke Google Sheets pada kolom <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-emerald-700 font-semibold">Status_Chat</code> agar riwayat kontak tersimpan permanen saat halaman direfresh.
+                  </p>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        <span>Google Apps Script Web App URL</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowAppsScriptModal(true)}
+                        className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Code2 className="h-3 w-3" />
+                        <span>Panduan & Kode Apps Script</span>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="url"
+                        value={googleSheetsUrl}
+                        onChange={(e) => setGoogleSheetsUrl(e.target.value)}
+                        placeholder="https://script.google.com/macros/s/.../exec"
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSyncWithGoogleSheets(googleSheetsUrl)}
+                        disabled={isSyncingSheets}
+                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition cursor-pointer shadow-xs shrink-0"
+                      >
+                        {isSyncingSheets ? (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            <span>Menyinkronkan...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            <span>Test & Sync Sekarang</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      *Telah mencakup 33 nomor riwayat awal bawaan sistem. Status tersimpan di memori browser dan akan disinkronkan dua arah dengan Google Sheets.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Sender Profile */}
@@ -3428,6 +3726,115 @@ export default function LeadFinderApp() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google Apps Script Helper Modal */}
+      {showAppsScriptModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in duration-100">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <FileSpreadsheet className="h-5 w-5 text-emerald-700" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">
+                    Panduan & Kode Google Apps Script (Status_Chat)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Sinkronisasi data prospek yang sudah dihubungi ke Google Sheets
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAppsScriptModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg leading-none cursor-pointer p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+                <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  Langkah Pemasangan Cepat (1 Menit):
+                </h4>
+                <ol className="list-decimal list-inside space-y-1.5 text-slate-700 leading-relaxed">
+                  <li>
+                    Buka Google Sheets baru di{' '}
+                    <a
+                      href="https://sheets.new"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 font-semibold underline"
+                    >
+                      sheets.new
+                    </a>
+                  </li>
+                  <li>
+                    Buat Header di Baris 1: <strong className="font-mono text-[11px] bg-white px-1.5 py-0.5 rounded border">Nomor_WA | Nomor_Standar | Nama_Bisnis | Status_Chat | Waktu_Kontak | Alamat | Kategori</strong>
+                  </li>
+                  <li>Buka menu <strong>Extensions &gt; Apps Script</strong>.</li>
+                  <li>Hapus kode bawaan di <code className="font-mono">Code.gs</code>, lalu tempel kode di bawah ini.</li>
+                  <li>
+                    Klik <strong>Deploy &gt; New deployment</strong> &gt; Pilih type <strong>Web app</strong>.
+                    <br />
+                    - <em>Execute as</em>: <strong>Me</strong>
+                    <br />
+                    - <em>Who has access</em>: <strong>Anyone</strong>
+                  </li>
+                  <li>Klik <strong>Deploy</strong>, izinkan akses akun (Authorize), dan salin URL Web App yang dihasilkan.</li>
+                  <li>Tempel URL tersebut ke menu <strong>Pengaturan &gt; Google Apps Script Web App URL</strong> di web ini.</li>
+                </ol>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 uppercase text-[10px] tracking-wider">
+                    Kode Google Apps Script (Code.gs)
+                  </span>
+                  <button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_SAMPLE_CODE);
+                      setCopiedAppsScript(true);
+                      showToast('success', 'Kode Google Apps Script berhasil disalin!');
+                      setTimeout(() => setCopiedAppsScript(false), 2500);
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] shadow-xs cursor-pointer"
+                  >
+                    {copiedAppsScript ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Tersalin!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>Salin Semua Kode</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-xl overflow-x-auto max-h-60 leading-relaxed border border-slate-800">
+                  {GOOGLE_APPS_SCRIPT_SAMPLE_CODE}
+                </pre>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowAppsScriptModal(false)}
+                className="px-4 py-2 rounded-lg bg-slate-900 text-white font-semibold text-xs hover:bg-slate-800 transition cursor-pointer"
+              >
+                Selesai & Tutup
+              </button>
             </div>
           </div>
         </div>

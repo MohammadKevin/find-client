@@ -138,7 +138,6 @@ Instruksi Penulisan:
           }
         }
       } catch {
-        // Fallback to next model
       }
     }
 

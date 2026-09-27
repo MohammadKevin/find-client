@@ -77,13 +77,11 @@ Pedoman Khusus Menjawab:
             }
           }
         } catch {
-          // Fallback to next model
         }
       }
     }
 
     if (!generatedReply) {
-      // Rule-based fallback
       const lower = incomingMessage.toLowerCase();
       if (lower.includes('harga') || lower.includes('biaya') || lower.includes('tarif') || lower.includes('berapa')) {
         generatedReply = `Halo Kak/Bapak/Ibu ${businessName}, untuk pembuatan website di tempat kami sangat terjangkau mulai dari Rp300.000 - Rp450.000 (Landing page profil/katalog ringkas) hingga Rp500.000 - Rp700.000 (Katalog interaktif + order WA lengkap).
