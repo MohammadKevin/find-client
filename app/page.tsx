@@ -465,6 +465,7 @@ export default function LeadFinderApp() {
   const [editedMessage, setEditedMessage] = useState('');
 
   const [crmStatusFilter, setCrmStatusFilter] = useState<'all' | OutreachStatus>('all');
+  const [isSyncingCrm, setIsSyncingCrm] = useState(false);
 
   const [copilotIncomingMessage, setCopilotIncomingMessage] = useState('');
   const [copilotClientName, setCopilotClientName] = useState('');
@@ -578,6 +579,130 @@ export default function LeadFinderApp() {
     } catch {}
   }, []);
 
+  const getResolvedStatus = (lead: LeadWithMeta): OutreachStatus => {
+    const cleanP = lead.phoneAnalysis?.cleaned || normalizeWhatsAppNumber(lead.nationalPhoneNumber);
+    if (cleanP && isPhoneContacted(cleanP, phoneRegistry)) {
+      if (lead.status === 'followup' || lead.status === 'closed' || lead.status === 'rejected') {
+        return lead.status;
+      }
+      return 'contacted';
+    }
+    return lead.status || 'new';
+  };
+
+  const syncCrmFromSheet = async (forceSheetOnly = false) => {
+    setIsSyncingCrm(true);
+    try {
+      const res = await fetch(
+        `/api/sheets${googleSheetsUrl ? `?sheetUrl=${encodeURIComponent(googleSheetsUrl)}` : ''}`
+      );
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (Array.isArray(data.contactedNumbers)) {
+          setPhoneRegistry((prev) => {
+            const next = { ...prev };
+            data.contactedNumbers.forEach((p: string) => {
+              if (!next[p]) {
+                next[p] = {
+                  cleanPhone: p,
+                  contactedAt: new Date().toISOString(),
+                  businessName: 'Database Kontak Google Sheets',
+                  status: 'contacted',
+                };
+              }
+            });
+            try {
+              localStorage.setItem('lead_phone_registry', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+        }
+
+        if (Array.isArray(data.remoteRecords) && data.remoteRecords.length > 0) {
+          const sheetLeads: LeadWithMeta[] = data.remoteRecords.map((record: RemoteSheetRecord, idx: number) => {
+            const clean = record.normalizedPhone || normalizeWhatsAppNumber(record.phone);
+            const statusRaw = (record.status || '').toLowerCase();
+            let statusResolved: OutreachStatus = 'new';
+            if (statusRaw === 'sudah' || statusRaw === 'sudah di-chat' || statusRaw === 'contacted') {
+              statusResolved = 'contacted';
+            } else if (statusRaw === 'follow-up' || statusRaw === 'perlu follow-up' || statusRaw === 'followup') {
+              statusResolved = 'followup';
+            } else if (statusRaw === 'deal' || statusRaw === 'deal / selesai' || statusRaw === 'closed') {
+              statusResolved = 'closed';
+            } else if (statusRaw === 'ditolak' || statusRaw === 'rejected') {
+              statusResolved = 'rejected';
+            }
+
+            return {
+              id: `sheet-${clean || idx}`,
+              name: record.name || `Prospek ${idx + 1}`,
+              formattedAddress: record.address || 'Alamat dari Google Sheets',
+              nationalPhoneNumber: record.phone || clean,
+              internationalPhoneNumber: record.phone || clean,
+              websiteUri: null,
+              hasWebsite: false,
+              rating: 0,
+              userRatingCount: 0,
+              types: [],
+              primaryType: 'unknown',
+              phoneAnalysis: {
+                raw: record.phone,
+                cleaned: clean,
+                isValid: Boolean(clean),
+                isMobile: true,
+                type: 'mobile',
+                formattedDisplay: record.phone || clean,
+              },
+              status: statusResolved,
+              selectedCategory: (record.category as OutreachCategory) || 'general',
+              addedAt: record.contactedAt || new Date().toLocaleDateString('id-ID'),
+            };
+          });
+
+          if (forceSheetOnly) {
+            setSavedLeadsCrm(sheetLeads);
+            try {
+              localStorage.setItem('lead_saved_crm_records', JSON.stringify(sheetLeads));
+            } catch {}
+            showToast('success', `Berhasil memuat ${sheetLeads.length} data murni dari Google Sheets.`);
+          } else {
+            setSavedLeadsCrm((prevCrm) => {
+              const merged = [...prevCrm];
+              sheetLeads.forEach((sl) => {
+                const slPhone = sl.phoneAnalysis.cleaned;
+                const idx = merged.findIndex((l) => (l.phoneAnalysis.cleaned || normalizeWhatsAppNumber(l.nationalPhoneNumber)) === slPhone);
+                if (idx >= 0) {
+                  merged[idx] = {
+                    ...merged[idx],
+                    status: sl.status,
+                    name: sl.name && !sl.name.startsWith('Prospek') ? sl.name : merged[idx].name,
+                    formattedAddress: sl.formattedAddress !== 'Alamat dari Google Sheets' ? sl.formattedAddress : merged[idx].formattedAddress,
+                  };
+                } else {
+                  merged.unshift(sl);
+                }
+              });
+              try {
+                localStorage.setItem('lead_saved_crm_records', JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
+            showToast('success', `Sinkronisasi Google Sheets selesai (${data.remoteRecords.length} baris dipetakan).`);
+          }
+        } else {
+          showToast('success', 'Tersambung ke Google Sheets (Data kosong).');
+        }
+      } else {
+        showToast('error', data.error || 'Gagal tersambung ke Google Sheets.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal sinkronisasi.';
+      showToast('error', msg);
+    } finally {
+      setIsSyncingCrm(false);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
     const initialSync = async () => {
@@ -605,16 +730,38 @@ export default function LeadFinderApp() {
             return next;
           });
 
-          // Sync remote records into CRM
-          if (Array.isArray(data.remoteRecords)) {
+          // Auto-hydrate Sheet records into CRM on mount
+          if (Array.isArray(data.remoteRecords) && data.remoteRecords.length > 0) {
             setSavedLeadsCrm((prevCrm) => {
-              const newCrm = [...prevCrm];
-              data.remoteRecords.forEach((record: RemoteSheetRecord) => {
-                const exists = newCrm.find((l) => (l.phoneAnalysis.cleaned || normalizeWhatsAppNumber(l.nationalPhoneNumber)) === record.normalizedPhone);
-                if (!exists) {
+              const merged = [...prevCrm];
+              data.remoteRecords.forEach((record: RemoteSheetRecord, idx: number) => {
+                const clean = record.normalizedPhone || normalizeWhatsAppNumber(record.phone);
+                const statusRaw = (record.status || '').toLowerCase();
+                let statusResolved: OutreachStatus = 'new';
+                if (statusRaw === 'sudah' || statusRaw === 'sudah di-chat' || statusRaw === 'contacted') {
+                  statusResolved = 'contacted';
+                } else if (statusRaw === 'follow-up' || statusRaw === 'perlu follow-up' || statusRaw === 'followup') {
+                  statusResolved = 'followup';
+                } else if (statusRaw === 'deal' || statusRaw === 'deal / selesai' || statusRaw === 'closed') {
+                  statusResolved = 'closed';
+                } else if (statusRaw === 'ditolak' || statusRaw === 'rejected') {
+                  statusResolved = 'rejected';
+                }
+
+                const existingIdx = merged.findIndex(
+                  (l) => (l.phoneAnalysis.cleaned || normalizeWhatsAppNumber(l.nationalPhoneNumber)) === clean
+                );
+
+                if (existingIdx >= 0) {
+                  merged[existingIdx] = {
+                    ...merged[existingIdx],
+                    status: statusResolved,
+                    name: record.name && !record.name.startsWith('Prospek') ? record.name : merged[existingIdx].name,
+                  };
+                } else {
                   const newLead: LeadWithMeta = {
-                    id: `sheet-${record.normalizedPhone}`,
-                    name: record.name,
+                    id: `sheet-${clean || idx}`,
+                    name: record.name || `Prospek ${idx + 1}`,
                     formattedAddress: record.address || 'Alamat tidak tersedia',
                     nationalPhoneNumber: record.phone,
                     internationalPhoneNumber: record.phone,
@@ -626,25 +773,23 @@ export default function LeadFinderApp() {
                     primaryType: 'unknown',
                     phoneAnalysis: { 
                       raw: record.phone,
-                      cleaned: record.normalizedPhone, 
-                      isValid: true, 
+                      cleaned: clean, 
+                      isValid: Boolean(clean), 
                       isMobile: true, 
                       type: 'mobile', 
-                      formattedDisplay: record.phone,
+                      formattedDisplay: record.phone || clean,
                     },
-                    status: (record.status || 'contacted') as OutreachStatus,
-                    selectedCategory: record.category || 'general',
-                    addedAt: new Date().toLocaleDateString('id-ID'),
+                    status: statusResolved,
+                    selectedCategory: (record.category as OutreachCategory) || 'general',
+                    addedAt: record.contactedAt || new Date().toLocaleDateString('id-ID'),
                   };
-                  newCrm.unshift(newLead);
-                } else if (record.status && exists.status !== record.status) {
-                  exists.status = record.status as OutreachStatus;
+                  merged.unshift(newLead);
                 }
               });
               try {
-                localStorage.setItem('lead_saved_crm_records', JSON.stringify(newCrm));
+                localStorage.setItem('lead_saved_crm_records', JSON.stringify(merged));
               } catch {}
-              return newCrm;
+              return merged;
             });
           }
         }
@@ -2437,16 +2582,34 @@ export default function LeadFinderApp() {
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Pipeline CRM Outreach</h3>
                   <p className="text-xs text-slate-500">
-                    Kelola status kontak seluruh prospek bisnis yang telah ditemukan.
+                    Kelola status kontak seluruh prospek bisnis yang tersimpan dan tersinkron dengan Google Sheets.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => syncCrmFromSheet(false)}
+                    disabled={isSyncingCrm}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer shadow-xs"
+                    title="Tarik data terbaru dari Google Sheets"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${isSyncingCrm ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingCrm ? 'Sinkron...' : 'Sync Sheet'}</span>
+                  </button>
+                  <button
+                    onClick={() => syncCrmFromSheet(true)}
+                    disabled={isSyncingCrm}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold transition cursor-pointer shadow-xs"
+                    title="Hanya tampilkan baris yang ada di Google Sheets"
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Murni Data Sheet</span>
+                  </button>
                   <button
                     onClick={handleDownloadWaList}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition cursor-pointer"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    <span>Download WA List</span>
+                    <span>Download WA</span>
                   </button>
                   <button
                     onClick={handleDownloadCsv}
@@ -2474,11 +2637,11 @@ export default function LeadFinderApp() {
                   onClick={() => setCrmStatusFilter('new')}
                   className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer text-[11px] ${
                     crmStatusFilter === 'new'
-                      ? 'bg-blue-600 text-white font-semibold'
-                      : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+                      ? 'bg-amber-600 text-white font-semibold'
+                      : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
                   }`}
                 >
-                  Baru ({savedLeadsCrm.filter((l) => l.status === 'new').length})
+                  ⏳ Belum Di-Chat ({savedLeadsCrm.filter((l) => getResolvedStatus(l) === 'new').length})
                 </button>
                 <button
                   onClick={() => setCrmStatusFilter('contacted')}
@@ -2488,17 +2651,20 @@ export default function LeadFinderApp() {
                       : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
                   }`}
                 >
-                  Sudah Dikontak ({savedLeadsCrm.filter((l) => l.status === 'contacted').length})
+                  ✅ Sudah Di-Chat ({savedLeadsCrm.filter((l) => {
+                    const s = getResolvedStatus(l);
+                    return s === 'contacted' || s === 'followup' || s === 'closed';
+                  }).length})
                 </button>
                 <button
                   onClick={() => setCrmStatusFilter('followup')}
                   className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer text-[11px] ${
                     crmStatusFilter === 'followup'
-                      ? 'bg-amber-600 text-white font-semibold'
-                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                      ? 'bg-blue-600 text-white font-semibold'
+                      : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
                   }`}
                 >
-                  Perlu Follow-up ({savedLeadsCrm.filter((l) => l.status === 'followup').length})
+                  Perlu Follow-up ({savedLeadsCrm.filter((l) => getResolvedStatus(l) === 'followup').length})
                 </button>
                 <button
                   onClick={() => setCrmStatusFilter('closed')}
@@ -2508,7 +2674,7 @@ export default function LeadFinderApp() {
                       : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'
                   }`}
                 >
-                  Deal / Selesai ({savedLeadsCrm.filter((l) => l.status === 'closed').length})
+                  Deal / Selesai ({savedLeadsCrm.filter((l) => getResolvedStatus(l) === 'closed').length})
                 </button>
               </div>
 
@@ -2517,7 +2683,7 @@ export default function LeadFinderApp() {
                   <Users className="h-8 w-8 text-slate-300 mx-auto mb-2" />
                   <p className="text-xs font-semibold text-slate-700">Belum ada data di Pipeline CRM</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Lakukan pencarian prospek untuk otomatis mencatat data ke CRM.
+                    Lakukan pencarian prospek atau klik &quot;Sync Sheet&quot; untuk memuat data.
                   </p>
                 </div>
               ) : (
@@ -2536,15 +2702,22 @@ export default function LeadFinderApp() {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {savedLeadsCrm
-                          .filter((l) => crmStatusFilter === 'all' || l.status === crmStatusFilter)
+                          .filter((l) => {
+                            const resStatus = getResolvedStatus(l);
+                            if (crmStatusFilter === 'all') return true;
+                            if (crmStatusFilter === 'contacted') {
+                              return resStatus === 'contacted' || resStatus === 'followup' || resStatus === 'closed';
+                            }
+                            return resStatus === crmStatusFilter;
+                          })
                           .map((lead) => {
                             const cleanP =
-                              lead.phoneAnalysis.cleaned || normalizeWhatsAppNumber(lead.nationalPhoneNumber);
+                              lead.phoneAnalysis?.cleaned || normalizeWhatsAppNumber(lead.nationalPhoneNumber);
+                            const currentStatus = getResolvedStatus(lead);
                             const isContactedBefore =
-                              (cleanP && isPhoneContacted(cleanP, phoneRegistry)) ||
-                              lead.status === 'contacted' ||
-                              lead.status === 'followup' ||
-                              lead.status === 'closed';
+                              currentStatus === 'contacted' ||
+                              currentStatus === 'followup' ||
+                              currentStatus === 'closed';
 
                             return (
                               <tr key={lead.id} className="hover:bg-slate-50/70 transition">
@@ -2566,9 +2739,9 @@ export default function LeadFinderApp() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-2.5 font-mono text-[11px]">
-                                  {lead.phoneAnalysis.cleaned ? (
+                                  {cleanP ? (
                                     <span className="text-emerald-700 font-medium">
-                                      {lead.phoneAnalysis.cleaned}
+                                      {cleanP}
                                     </span>
                                   ) : (
                                     <span className="text-slate-400">-</span>
@@ -2587,18 +2760,18 @@ export default function LeadFinderApp() {
                                 <td className="px-4 py-2.5">
                                   <select
                                     aria-label="Status Pipeline Lead"
-                                    value={lead.status}
+                                    value={currentStatus}
                                     onChange={(e) =>
                                       updateLeadStatus(lead.id, e.target.value as OutreachStatus)
                                     }
                                     className={`text-[11px] font-semibold py-1 px-2 rounded border focus:outline-none cursor-pointer ${
-                                      STATUS_CONFIG[lead.status]?.bg || 'bg-slate-50'
-                                    } ${STATUS_CONFIG[lead.status]?.border || 'border-slate-200'}`}
+                                      STATUS_CONFIG[currentStatus]?.bg || 'bg-slate-50'
+                                    } ${STATUS_CONFIG[currentStatus]?.border || 'border-slate-200'}`}
                                   >
-                                    <option value="new">Baru</option>
-                                    <option value="contacted">Sudah Dikontak</option>
-                                    <option value="followup">Follow-up</option>
-                                    <option value="closed">Deal</option>
+                                    <option value="new">Belum Di-Chat</option>
+                                    <option value="contacted">Sudah Di-Chat</option>
+                                    <option value="followup">Perlu Follow-up</option>
+                                    <option value="closed">Deal / Selesai</option>
                                     <option value="rejected">Ditolak</option>
                                   </select>
                                 </td>
@@ -2606,7 +2779,7 @@ export default function LeadFinderApp() {
                                   <div className="inline-flex items-center gap-1.5 justify-end">
                                     <button
                                       onClick={() => handleOpenWhatsAppManual(lead)}
-                                      disabled={!lead.phoneAnalysis.isMobile}
+                                      disabled={!lead.phoneAnalysis?.isMobile && !cleanP}
                                       className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-[10px] border border-emerald-300 cursor-pointer"
                                       title="Buka WhatsApp & sinkron status"
                                     >
@@ -2625,11 +2798,11 @@ export default function LeadFinderApp() {
 
                                     <button
                                       onClick={() => handleAutoSendWhatsApp(lead)}
-                                      disabled={!lead.phoneAnalysis.isMobile || dispatchCooldown > 0}
+                                      disabled={(!lead.phoneAnalysis?.isMobile && !cleanP) || dispatchCooldown > 0}
                                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] cursor-pointer"
                                     >
                                       <Zap className="h-3 w-3 fill-current" />
-                                      <span>{lead.status === 'contacted' ? 'Kirim Lagi' : 'Kirim Otomatis'}</span>
+                                      <span>{isContactedBefore ? 'Kirim Lagi' : 'Kirim Otomatis'}</span>
                                     </button>
                                   </div>
                                 </td>
