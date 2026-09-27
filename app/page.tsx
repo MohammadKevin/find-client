@@ -701,6 +701,38 @@ export default function LeadFinderApp() {
             lastSynced: new Date().toLocaleTimeString('id-ID'),
             error: data.syncError,
           });
+
+          // Sync remote records into CRM
+          if (Array.isArray(data.remoteRecords)) {
+            setSavedLeadsCrm((prevCrm) => {
+              const newCrm = [...prevCrm];
+              data.remoteRecords.forEach((record: any) => {
+                const exists = newCrm.find((l) => (l.phoneAnalysis.cleaned || normalizeWhatsAppNumber(l.nationalPhoneNumber)) === record.normalizedPhone);
+                if (!exists) {
+                  const newLead: LeadWithMeta = {
+                    id: `sheet-${record.normalizedPhone}`,
+                    name: record.name,
+                    formattedAddress: record.address,
+                    nationalPhoneNumber: record.phone,
+                    phoneAnalysis: { cleaned: record.normalizedPhone, isValid: true, isMobile: true, type: 'mobile', formattedDisplay: record.phone, raw: record.phone },
+                    hasWebsite: false,
+                    rating: 0,
+                    userRatingCount: 0,
+                    status: record.status as OutreachStatus,
+                    selectedCategory: record.category || 'general',
+                    addedAt: new Date().toLocaleDateString('id-ID'),
+                  };
+                  newCrm.unshift(newLead);
+                } else if (exists.status !== record.status) {
+                  exists.status = record.status as OutreachStatus;
+                }
+              });
+              try {
+                localStorage.setItem('lead_saved_crm_records', JSON.stringify(newCrm));
+              } catch {}
+              return newCrm;
+            });
+          }
         }
       } catch {}
     };
