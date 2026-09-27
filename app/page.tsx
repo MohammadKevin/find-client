@@ -28,7 +28,6 @@ import {
   CheckCheck,
   Bot,
   Users,
-  Settings,
   Menu,
   X,
   Smartphone,
@@ -38,7 +37,6 @@ import {
   LogOut,
   MessageSquareQuote,
   Mail,
-  Code2,
 } from 'lucide-react';
 import {
   generateOutreachMessage,
@@ -52,9 +50,8 @@ import {
   isPhoneContacted,
   getInitialContactedRegistry,
 } from '@/lib/phone-utils';
-import { GOOGLE_APPS_SCRIPT_SAMPLE_CODE } from '@/app/api/sheets/route';
 
-type ActiveTab = 'search' | 'crm' | 'copilot' | 'templates' | 'export' | 'settings';
+type ActiveTab = 'search' | 'crm' | 'copilot' | 'templates' | 'export';
 type OutreachStatus = 'new' | 'contacted' | 'followup' | 'closed' | 'rejected';
 
 interface LeadWithMeta extends PlaceLead {
@@ -70,6 +67,16 @@ interface ContactedPhoneRecord {
   contactedAt: string;
   businessName: string;
   status: OutreachStatus;
+}
+
+interface RemoteSheetRecord {
+  phone: string;
+  normalizedPhone: string;
+  name: string;
+  address?: string;
+  status?: string;
+  category?: OutreachCategory;
+  contactedAt?: string;
 }
 
 const POPULAR_CITIES = [
@@ -430,28 +437,18 @@ export default function LeadFinderApp() {
     getInitialContactedRegistry()
   );
 
-  const [googleSheetsUrl, setGoogleSheetsUrl] = useState(() => {
+  const [googleSheetsUrl] = useState(() => {
     return process.env.NEXT_PUBLIC_LEADS_SHEET_API || '';
   });
 
-  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
-  const [sheetsSyncInfo, setSheetsSyncInfo] = useState<{
-    connected: boolean;
-    count: number;
-    lastSynced?: string;
-    error?: string | null;
-  } | null>(null);
-  const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
-  const [copiedAppsScript, setCopiedAppsScript] = useState(false);
-
   const [dispatchCooldown, setDispatchCooldown] = useState<number>(0);
 
-  const [serpApiKey, setSerpApiKey] = useState(process.env.SERPAPI_API_KEY || '');
-  const [geminiApiKey, setGeminiApiKey] = useState(process.env.GEMINI_API_KEY || '');
-  const [fonnteToken, setFonnteToken] = useState(process.env.FONNTE_TOKEN || '');
-  const [senderName, setSenderName] = useState(process.env.SENDER_NAME || '');
-  const [senderRole, setSenderRole] = useState(process.env.SENDER_ROLE || '');
-  const [senderEmail, setSenderEmail] = useState(process.env.SENDER_EMAIL || '');
+  const [serpApiKey] = useState(process.env.SERPAPI_API_KEY || '');
+  const [geminiApiKey] = useState(process.env.GEMINI_API_KEY || '');
+  const [fonnteToken] = useState(process.env.FONNTE_TOKEN || '');
+  const [senderName] = useState(process.env.SENDER_NAME || 'Mohammad Kevin');
+  const [senderRole] = useState(process.env.SENDER_ROLE || 'freelance web developer');
+  const [senderEmail] = useState(process.env.SENDER_EMAIL || 'mhmdkevin198@gmail.com');
 
   const [isLoading, setIsLoading] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -564,77 +561,6 @@ export default function LeadFinderApp() {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const handleSyncWithGoogleSheets = async (targetUrl?: string) => {
-    const urlToUse = targetUrl !== undefined ? targetUrl : googleSheetsUrl;
-    setIsSyncingSheets(true);
-    try {
-      const res = await fetch(
-        `/api/sheets${urlToUse ? `?sheetUrl=${encodeURIComponent(urlToUse)}` : ''}`
-      );
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (Array.isArray(data.contactedNumbers)) {
-          setPhoneRegistry((prev) => {
-            const next = { ...prev };
-            data.contactedNumbers.forEach((p: string) => {
-              if (!next[p]) {
-                next[p] = {
-                  cleanPhone: p,
-                  contactedAt: new Date().toISOString(),
-                  businessName: 'Database Kontak Google Sheets',
-                  status: 'contacted',
-                };
-              }
-            });
-            try {
-              localStorage.setItem('lead_phone_registry', JSON.stringify(next));
-            } catch {}
-            return next;
-          });
-
-          setLeads((prevLeads) =>
-            prevLeads.map((lead) => {
-              const clean =
-                lead.phoneAnalysis.cleaned || normalizeWhatsAppNumber(lead.nationalPhoneNumber);
-              if (clean && data.contactedNumbers.includes(clean) && lead.status === 'new') {
-                return { ...lead, status: 'contacted' };
-              }
-              return lead;
-            })
-          );
-        }
-
-        setSheetsSyncInfo({
-          connected: Boolean(data.sheetsConnected),
-          count: data.totalContacted || data.contactedNumbers?.length || 0,
-          lastSynced: new Date().toLocaleTimeString('id-ID'),
-          error: data.syncError,
-        });
-
-        if (data.sheetsConnected) {
-          showToast(
-            'success',
-            `Berhasil tersambung ke Google Sheets (${data.totalContacted} nomor tersinkron).`
-          );
-        } else if (urlToUse) {
-          showToast('error', data.syncError || 'Gagal tersambung ke Google Apps Script.');
-        } else {
-          showToast(
-            'success',
-            `Database lokal aktif (${data.totalContacted} riwayat nomor siap sinkron).`
-          );
-        }
-      } else {
-        showToast('error', data.error || 'Sinkronisasi gagal.');
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Gagal menghubungi endpoint sinkronisasi.';
-      showToast('error', msg);
-    } finally {
-      setIsSyncingSheets(false);
-    }
-  };
-
   useEffect(() => {
     try {
       const pin = sessionStorage.getItem('leadfinder_auth_pin');
@@ -645,20 +571,6 @@ export default function LeadFinderApp() {
       if (storedRegistry) {
         setPhoneRegistry((prev) => ({ ...prev, ...JSON.parse(storedRegistry) }));
       }
-      const storedUrl = localStorage.getItem('google_sheets_webapp_url');
-      if (storedUrl) setGoogleSheetsUrl(storedUrl);
-      const storedSerp = localStorage.getItem('serpapi_api_key');
-      if (storedSerp) setSerpApiKey(storedSerp);
-      const storedGemini = localStorage.getItem('gemini_api_key');
-      if (storedGemini) setGeminiApiKey(storedGemini);
-      const storedFonnte = localStorage.getItem('fonnte_api_token');
-      if (storedFonnte) setFonnteToken(storedFonnte);
-      const storedSender = localStorage.getItem('lead_sender_name');
-      if (storedSender) setSenderName(storedSender);
-      const storedRole = localStorage.getItem('lead_sender_role');
-      if (storedRole) setSenderRole(storedRole);
-      const storedEmail = localStorage.getItem('lead_sender_email');
-      if (storedEmail) setSenderEmail(storedEmail);
       const storedStatuses = localStorage.getItem('lead_outreach_statuses');
       if (storedStatuses) setSavedStatuses(JSON.parse(storedStatuses));
       const storedCrm = localStorage.getItem('lead_saved_crm_records');
@@ -693,18 +605,11 @@ export default function LeadFinderApp() {
             return next;
           });
 
-          setSheetsSyncInfo({
-            connected: Boolean(data.sheetsConnected),
-            count: data.totalContacted || data.contactedNumbers.length || 0,
-            lastSynced: new Date().toLocaleTimeString('id-ID'),
-            error: data.syncError,
-          });
-
           // Sync remote records into CRM
           if (Array.isArray(data.remoteRecords)) {
             setSavedLeadsCrm((prevCrm) => {
               const newCrm = [...prevCrm];
-              data.remoteRecords.forEach((record: any) => {
+              data.remoteRecords.forEach((record: RemoteSheetRecord) => {
                 const exists = newCrm.find((l) => (l.phoneAnalysis.cleaned || normalizeWhatsAppNumber(l.nationalPhoneNumber)) === record.normalizedPhone);
                 if (!exists) {
                   const newLead: LeadWithMeta = {
@@ -727,12 +632,12 @@ export default function LeadFinderApp() {
                       type: 'mobile', 
                       formattedDisplay: record.phone,
                     },
-                    status: record.status as OutreachStatus,
+                    status: (record.status || 'contacted') as OutreachStatus,
                     selectedCategory: record.category || 'general',
                     addedAt: new Date().toLocaleDateString('id-ID'),
                   };
                   newCrm.unshift(newLead);
-                } else if (exists.status !== record.status) {
+                } else if (record.status && exists.status !== record.status) {
                   exists.status = record.status as OutreachStatus;
                 }
               });
@@ -751,24 +656,6 @@ export default function LeadFinderApp() {
       isMounted = false;
     };
   }, [googleSheetsUrl]);
-
-  const handleSaveApiKeys = () => {
-    try {
-      localStorage.setItem('serpapi_api_key', serpApiKey);
-      localStorage.setItem('gemini_api_key', geminiApiKey);
-      localStorage.setItem('fonnte_api_token', fonnteToken);
-      localStorage.setItem('google_sheets_webapp_url', googleSheetsUrl);
-      localStorage.setItem('lead_sender_name', senderName);
-      localStorage.setItem('lead_sender_role', senderRole);
-      localStorage.setItem('lead_sender_email', senderEmail);
-      showToast('success', 'Pengaturan API, Google Sheets & Profil berhasil disimpan.');
-      if (googleSheetsUrl) {
-        handleSyncWithGoogleSheets(googleSheetsUrl);
-      }
-    } catch {
-      showToast('error', 'Gagal menyimpan konfigurasi ke browser storage.');
-    }
-  };
 
   const registerContactHistory = (lead: LeadWithMeta, status: OutreachStatus = 'contacted') => {
     const cleanPhone =
@@ -1744,23 +1631,6 @@ export default function LeadFinderApp() {
             <div className="border-t border-slate-100 my-2 pt-2" />
 
             <button
-              onClick={() => {
-                setActiveTab('settings');
-                setMobileSidebarOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
-                activeTab === 'settings'
-                  ? 'bg-slate-100 text-slate-900 font-semibold shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Settings className="h-4 w-4 text-slate-500" />
-                <span>Pengaturan Gateway</span>
-              </div>
-            </button>
-
-            <button
               onClick={handleLogout}
               className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer text-slate-500 hover:bg-red-50 hover:text-red-700 mt-2"
             >
@@ -1808,7 +1678,6 @@ export default function LeadFinderApp() {
                 {activeTab === 'copilot' && 'AI Response Copilot (Balas Chat Klien)'}
                 {activeTab === 'templates' && 'AI Copywriting Studio'}
                 {activeTab === 'export' && 'Ekspor Database Kontak'}
-                {activeTab === 'settings' && 'Pengaturan Gateway & Profil'}
               </h1>
             </div>
           </div>
@@ -3136,201 +3005,6 @@ export default function LeadFinderApp() {
               </div>
             </div>
           )}
-
-          {/* TAB 5: SETTINGS */}
-          {activeTab === 'settings' && (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 max-w-2xl space-y-5 shadow-xs">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Konfigurasi API & Profil Pengirim</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Kelola API Key SerpApi, Gemini AI, Fonnte Gateway, dan identitas pengirim outreach.
-                </p>
-              </div>
-
-              <div className="space-y-3.5 pt-1">
-                {/* SerpApi Key */}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                    <Search className="h-3.5 w-3.5 text-blue-600" />
-                    <span>SerpApi (Google Maps Engine) API Key</span>
-                  </label>
-                  <input
-                    type="password"
-                    value={serpApiKey}
-                    onChange={(e) => setSerpApiKey(e.target.value)}
-                    placeholder="2df4f9a3c5545618d345c19f..."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Kunci pencarian Google Maps dari serpapi.com (Free Tier tanpa kartu kredit).
-                  </p>
-                </div>
-
-                {/* Gemini AI Key */}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                    <Bot className="h-3.5 w-3.5 text-purple-600" />
-                    <span>Google Gemini AI API Key</span>
-                  </label>
-                  <input
-                    type="password"
-                    value={geminiApiKey}
-                    onChange={(e) => setGeminiApiKey(e.target.value)}
-                    placeholder="AQ.Ab8RN6IZE9d2P..."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Membuat draf pesan WhatsApp personalisasi unik secara otomatis.
-                  </p>
-                </div>
-
-                {/* Fonnte Token */}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                    <Zap className="h-3.5 w-3.5 text-emerald-600" />
-                    <span>Fonnte WhatsApp Token (Device: 0895629460144)</span>
-                  </label>
-                  <input
-                    type="password"
-                    value={fonnteToken}
-                    onChange={(e) => setFonnteToken(e.target.value)}
-                    placeholder="hAEbTy6zmgvnsKrE..."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Token perangkat Fonnte untuk mengirim pesan langsung dari nomor WhatsApp Anda.
-                  </p>
-                </div>
-
-                {/* Google Sheets Backend Sync Card */}
-                <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <FileSpreadsheet className="h-4 w-4 text-emerald-700" />
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                        Integrasi Google Sheets Backend (Status_Chat)
-                      </h4>
-                    </div>
-                    {sheetsSyncInfo && (
-                      <span
-                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
-                          sheetsSyncInfo.connected
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                            : 'bg-amber-100 text-amber-900 border-amber-300'
-                        }`}
-                      >
-                        {sheetsSyncInfo.connected ? (
-                          <>
-                            <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                            <span>Terhubung ({sheetsSyncInfo.count} Nomor Terdata)</span>
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="h-3 w-3 text-amber-600" />
-                            <span>Lokal Standalone ({sheetsSyncInfo.count} Nomor Riwayat)</span>
-                          </>
-                        )}
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Setiap kali Anda menekan tombol <strong className="text-slate-800">&quot;Chat WA&quot;</strong>, status lead otomatis dicatat ke Google Sheets pada kolom <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-emerald-700 font-semibold">Status_Chat</code> agar riwayat kontak tersimpan permanen saat halaman direfresh.
-                  </p>
-
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                        <span>Google Apps Script Web App URL</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowAppsScriptModal(true)}
-                        className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold underline flex items-center gap-1 cursor-pointer"
-                      >
-                        <Code2 className="h-3 w-3" />
-                        <span>Panduan & Kode Apps Script</span>
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <input
-                        type="url"
-                        value={googleSheetsUrl}
-                        onChange={(e) => setGoogleSheetsUrl(e.target.value)}
-                        placeholder="https://script.google.com/macros/s/.../exec"
-                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSyncWithGoogleSheets(googleSheetsUrl)}
-                        disabled={isSyncingSheets}
-                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition cursor-pointer shadow-xs shrink-0"
-                      >
-                        {isSyncingSheets ? (
-                          <>
-                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                            <span>Menyinkronkan...</span>
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-3.5 w-3.5" />
-                            <span>Test & Sync Sekarang</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      *Telah mencakup 33 nomor riwayat awal bawaan sistem. Status tersimpan di memori browser dan akan disinkronkan dua arah dengan Google Sheets.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Sender Profile */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-800">Nama Pengirim</label>
-                    <input
-                      type="text"
-                      value={senderName}
-                      onChange={(e) => setSenderName(e.target.value)}
-                      placeholder="Mohammad Kevin"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-800">Email Pengirim (Global)</label>
-                    <input
-                      type="email"
-                      value={senderEmail}
-                      onChange={(e) => setSenderEmail(e.target.value)}
-                      placeholder="mhmdkevin198@gmail.com"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-800">Profesi / Role</label>
-                    <input
-                      type="text"
-                      value={senderRole}
-                      onChange={(e) => setSenderRole(e.target.value)}
-                      placeholder="freelance web developer"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    onClick={handleSaveApiKeys}
-                    className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition cursor-pointer"
-                  >
-                    Simpan Konfigurasi
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </main>
       </div>
 
@@ -3767,115 +3441,6 @@ export default function LeadFinderApp() {
                   )}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Google Apps Script Helper Modal */}
-      {showAppsScriptModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in duration-100">
-            {/* Header */}
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50">
-              <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-                  <FileSpreadsheet className="h-5 w-5 text-emerald-700" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">
-                    Panduan & Kode Google Apps Script (Status_Chat)
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Sinkronisasi data prospek yang sudah dihubungi ke Google Sheets
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowAppsScriptModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg leading-none cursor-pointer p-1"
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-5 overflow-y-auto space-y-4 text-xs">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
-                <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  Langkah Pemasangan Cepat (1 Menit):
-                </h4>
-                <ol className="list-decimal list-inside space-y-1.5 text-slate-700 leading-relaxed">
-                  <li>
-                    Buka Google Sheets baru di{' '}
-                    <a
-                      href="https://sheets.new"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-emerald-700 font-semibold underline"
-                    >
-                      sheets.new
-                    </a>
-                  </li>
-                  <li>
-                    Buat Header di Baris 1: <strong className="font-mono text-[11px] bg-white px-1.5 py-0.5 rounded border">Nomor_WA | Nomor_Standar | Nama_Bisnis | Status_Chat | Waktu_Kontak | Alamat | Kategori</strong>
-                  </li>
-                  <li>Buka menu <strong>Extensions &gt; Apps Script</strong>.</li>
-                  <li>Hapus kode bawaan di <code className="font-mono">Code.gs</code>, lalu tempel kode di bawah ini.</li>
-                  <li>
-                    Klik <strong>Deploy &gt; New deployment</strong> &gt; Pilih type <strong>Web app</strong>.
-                    <br />
-                    - <em>Execute as</em>: <strong>Me</strong>
-                    <br />
-                    - <em>Who has access</em>: <strong>Anyone</strong>
-                  </li>
-                  <li>Klik <strong>Deploy</strong>, izinkan akses akun (Authorize), dan salin URL Web App yang dihasilkan.</li>
-                  <li>Tempel URL tersebut ke menu <strong>Pengaturan &gt; Google Apps Script Web App URL</strong> di web ini.</li>
-                </ol>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900 uppercase text-[10px] tracking-wider">
-                    Kode Google Apps Script (Code.gs)
-                  </span>
-                  <button
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_SAMPLE_CODE);
-                      setCopiedAppsScript(true);
-                      showToast('success', 'Kode Google Apps Script berhasil disalin!');
-                      setTimeout(() => setCopiedAppsScript(false), 2500);
-                    }}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] shadow-xs cursor-pointer"
-                  >
-                    {copiedAppsScript ? (
-                      <>
-                        <Check className="h-3.5 w-3.5" />
-                        <span>Tersalin!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5" />
-                        <span>Salin Semua Kode</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-                <pre className="p-3 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-xl overflow-x-auto max-h-60 leading-relaxed border border-slate-800">
-                  {GOOGLE_APPS_SCRIPT_SAMPLE_CODE}
-                </pre>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
-              <button
-                onClick={() => setShowAppsScriptModal(false)}
-                className="px-4 py-2 rounded-lg bg-slate-900 text-white font-semibold text-xs hover:bg-slate-800 transition cursor-pointer"
-              >
-                Selesai & Tutup
-              </button>
             </div>
           </div>
         </div>
