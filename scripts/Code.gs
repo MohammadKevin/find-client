@@ -1,21 +1,17 @@
 /**
  * ============================================================
- * LEADS WHATSAPP TRACKER — Google Apps Script Backend
+ * LEADS WHATSAPP TRACKER & PIPELINE CRM — Google Apps Script
  * ============================================================
  *
- * CARA PASANG:
- * 1. Buka Google Sheets yang berisi data leads (pastikan ada kolom nomor telepon).
- * 2. Menu Extensions > Apps Script.
- * 3. Hapus isi Code.gs bawaan, tempel seluruh kode ini.
- * 4. Klik Deploy > New deployment > Web app
- *    - Execute as: Me
- *    - Who has access: Anyone
- * 5. Copy URL deployment, masukkan ke .env.local:
- *    NEXT_PUBLIC_LEADS_SHEET_API="https://script.google.com/macros/s/.../exec"
- * 6. Jalankan fungsi seedInitialChatted() sekali:
- *    - Pilih fungsi seedInitialChatted di dropdown atas editor
- *    - Klik tombol Run (▶)
- *    - Authorize jika diminta
+ * PANDUAN DEPLOYMENT:
+ * 1. Buka Google Sheets Anda.
+ * 2. Buka menu Extensions > Apps Script.
+ * 3. Hapus seluruh isi Code.gs, lalu tempel kode di bawah ini.
+ * 4. Klik Deploy > Manage deployments > Edit (ikon pensil) > Version: New version
+ *    PENTING:
+ *    - Execute as: Me (email akun Anda)
+ *    - Who has access: Anyone (Siapa saja)  <-- Wajib "Anyone" agar bisa diakses oleh web dashboard
+ * 5. Klik Deploy dan salin URL Web App yang dihasilkan.
  * ============================================================
  */
 
@@ -31,7 +27,8 @@ function normalizePhone_(raw) {
 
 function ensureColumns_() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var lastCol = sheet.getLastColumn();
+  var headers = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
 
   var statusCol = -1;
   var chattedCol = -1;
@@ -42,7 +39,7 @@ function ensureColumns_() {
     if (h === 'Chatted_At') chattedCol = i + 1;
   }
 
-  var nextCol = sheet.getLastColumn() + 1;
+  var nextCol = lastCol + 1;
 
   if (statusCol === -1) {
     statusCol = nextCol;
@@ -59,12 +56,14 @@ function ensureColumns_() {
 
 function findPhoneColumn_() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var lastCol = sheet.getLastColumn();
+  if (lastCol === 0) return 1;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
 
   var candidates = [
     'nomor_wa', 'nomor wa', 'phone', 'telepon', 'no_hp', 'no hp',
     'whatsapp', 'no_telp', 'nomor_standar', 'nomor', 'hp', 'no telp',
-    'nationalPhoneNumber', 'internationalPhoneNumber'
+    'nationalphonenumber', 'internationalphonenumber'
   ];
 
   for (var i = 0; i < headers.length; i++) {
@@ -99,18 +98,54 @@ function doGet(e) {
     var cols = ensureColumns_();
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
     var phoneCol = findPhoneColumn_();
     var chatted = [];
+    var data = [];
 
     if (lastRow > 1) {
-      var statusValues = sheet.getRange(2, cols.statusCol, lastRow - 1, 1).getValues();
-      var phoneValues = sheet.getRange(2, phoneCol, lastRow - 1, 1).getValues();
+      var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      var rows = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
-      for (var i = 0; i < statusValues.length; i++) {
-        var st = statusValues[i][0].toString().trim();
-        if (st === 'Sudah') {
-          var norm = normalizePhone_(phoneValues[i][0]);
-          if (norm) chatted.push(norm);
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        var rawPhone = row[phoneCol - 1] ? row[phoneCol - 1].toString().trim() : '';
+        var norm = normalizePhone_(rawPhone);
+        var statusVal = row[cols.statusCol - 1] ? row[cols.statusCol - 1].toString().trim() : 'new';
+        var chattedAtVal = row[cols.chattedCol - 1] ? row[cols.chattedCol - 1].toString().trim() : '';
+
+        var leadName = 'Prospek';
+        var leadAddress = '';
+        var leadCategory = 'general';
+
+        for (var h = 0; h < headers.length; h++) {
+          var hName = headers[h].toString().trim().toLowerCase();
+          if (hName.indexOf('nama') !== -1 || hName.indexOf('name') !== -1 || hName.indexOf('title') !== -1 || hName.indexOf('bisnis') !== -1) {
+            if (row[h]) leadName = row[h].toString().trim();
+          } else if (hName.indexOf('alamat') !== -1 || hName.indexOf('address') !== -1 || hName.indexOf('lokasi') !== -1) {
+            if (row[h]) leadAddress = row[h].toString().trim();
+          } else if (hName.indexOf('kategori') !== -1 || hName.indexOf('category') !== -1) {
+            if (row[h]) leadCategory = row[h].toString().trim();
+          }
+        }
+
+        if (norm) {
+          var isChatted = statusVal === 'Sudah' || statusVal === 'contacted' || statusVal === 'Sudah Di-Chat';
+          var resolvedStatus = isChatted ? 'contacted' : (statusVal === 'new' || statusVal === 'Baru' ? 'new' : statusVal);
+
+          data.push({
+            phone: rawPhone || norm,
+            normalizedPhone: norm,
+            name: leadName,
+            address: leadAddress,
+            category: leadCategory,
+            status: resolvedStatus,
+            contactedAt: chattedAtVal
+          });
+
+          if (isChatted) {
+            chatted.push(norm);
+          }
         }
       }
     }
@@ -118,6 +153,7 @@ function doGet(e) {
     lock.releaseLock();
     return ContentService.createTextOutput(JSON.stringify({
       status: 'success',
+      data: data,
       chatted: chatted
     })).setMimeType(ContentService.MimeType.JSON);
 
@@ -144,7 +180,12 @@ function doPost(e) {
   try {
     var body = JSON.parse(e.postData ? e.postData.contents : '{}');
     var rawPhone = body.phone || '';
-    var targetNorm = normalizePhone_(rawPhone);
+    var targetNorm = normalizePhone_(rawPhone || body.normalizedPhone);
+    var name = body.name || '';
+    var address = body.address || '';
+    var category = body.category || '';
+    var status = body.status || 'Sudah';
+    var contactedAt = body.contactedAt || new Date().toISOString();
 
     if (!targetNorm) {
       lock.releaseLock();
@@ -167,11 +208,45 @@ function doPost(e) {
         if (norm === targetNorm) {
           var row = i + 2;
           sheet.getRange(row, cols.statusCol).setValue('Sudah');
-          sheet.getRange(row, cols.chattedCol).setValue(new Date().toISOString());
+          sheet.getRange(row, cols.chattedCol).setValue(contactedAt);
+          if (name && name !== 'Prospek') {
+            // Update name if col exists
+            var lastCol = sheet.getLastColumn();
+            var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+            for (var h = 0; h < headers.length; h++) {
+              var hName = headers[h].toString().trim().toLowerCase();
+              if (hName.indexOf('nama') !== -1 || hName.indexOf('name') !== -1) {
+                sheet.getRange(row, h + 1).setValue(name);
+                break;
+              }
+            }
+          }
           found = true;
           break;
         }
       }
+    }
+
+    if (!found) {
+      if (lastRow === 0) {
+        sheet.appendRow([
+          'Nomor_WA',
+          'Nama_Bisnis',
+          'Alamat',
+          'Kategori',
+          'Status_Chat',
+          'Chatted_At'
+        ]);
+      }
+      sheet.appendRow([
+        "'" + (rawPhone || targetNorm),
+        name || 'Prospek',
+        address || '',
+        category || 'general',
+        'Sudah',
+        contactedAt
+      ]);
+      found = true;
     }
 
     lock.releaseLock();

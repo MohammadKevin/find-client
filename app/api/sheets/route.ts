@@ -114,13 +114,18 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const customSheetUrl = searchParams.get('sheetUrl');
-    const targetUrl = customSheetUrl || process.env.GOOGLE_SHEETS_WEBAPP_URL;
+    const targetUrl =
+      customSheetUrl ||
+      process.env.GOOGLE_SHEETS_WEBAPP_URL ||
+      process.env.NEXT_PUBLIC_LEADS_SHEET_API;
 
     const contactedSet = new Set<string>(INITIAL_CONTACTED_SET);
     const remoteRecords: Array<{
       phone: string;
       normalizedPhone: string;
       name: string;
+      address?: string;
+      category?: string;
       status: string;
       contactedAt: string;
     }> = [];
@@ -132,25 +137,39 @@ export async function GET(request: NextRequest) {
       try {
         const res = await fetch(targetUrl, {
           method: 'GET',
-          headers: { 'Accept': 'application/json' },
+          headers: { Accept: 'application/json' },
           next: { revalidate: 0 },
         });
 
         if (res.ok) {
           const json = await res.json();
-          if (json && json.status === 'success' && Array.isArray(json.data)) {
+          if (json && json.status === 'success') {
             sheetsConnected = true;
-            for (const item of json.data) {
-              const clean = normalizeWhatsAppNumber(item.normalizedPhone || item.phone);
-              if (clean) {
-                contactedSet.add(clean);
-                remoteRecords.push({
-                  phone: item.phone || clean,
-                  normalizedPhone: clean,
-                  name: item.name || '',
-                  status: item.status || 'Sudah Di-Chat',
-                  contactedAt: item.contactedAt || '',
-                });
+
+            if (Array.isArray(json.data)) {
+              for (const item of json.data) {
+                const clean = normalizeWhatsAppNumber(item.normalizedPhone || item.phone);
+                if (clean) {
+                  if (item.status === 'contacted' || item.status === 'Sudah' || item.status === 'Sudah Di-Chat') {
+                    contactedSet.add(clean);
+                  }
+                  remoteRecords.push({
+                    phone: item.phone || clean,
+                    normalizedPhone: clean,
+                    name: item.name || 'Prospek',
+                    address: item.address || '',
+                    category: item.category || 'general',
+                    status: item.status || 'new',
+                    contactedAt: item.contactedAt || '',
+                  });
+                }
+              }
+            }
+
+            if (Array.isArray(json.chatted)) {
+              for (const p of json.chatted) {
+                const clean = normalizeWhatsAppNumber(p);
+                if (clean) contactedSet.add(clean);
               }
             }
           }
@@ -170,7 +189,6 @@ export async function GET(request: NextRequest) {
       totalContacted: contactedSet.size,
       contactedNumbers: Array.from(contactedSet),
       remoteRecords,
-      sampleAppsScript: GOOGLE_APPS_SCRIPT_SAMPLE_CODE,
     });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Internal Server Error';
@@ -186,7 +204,7 @@ export async function POST(request: NextRequest) {
       name = '',
       address = '',
       category = '',
-      status = 'Sudah Di-Chat',
+      status = 'Sudah',
       sheetUrl,
       contactedAt = new Date().toISOString(),
     } = body;
@@ -199,7 +217,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const targetUrl = sheetUrl || process.env.GOOGLE_SHEETS_WEBAPP_URL;
+    const targetUrl =
+      sheetUrl ||
+      process.env.GOOGLE_SHEETS_WEBAPP_URL ||
+      process.env.NEXT_PUBLIC_LEADS_SHEET_API;
     let syncedToSheets = false;
     let sheetResponse: unknown = null;
 
@@ -241,7 +262,7 @@ export async function POST(request: NextRequest) {
       status,
       message: syncedToSheets
         ? 'Status berhasil dicatat dan disinkronkan ke Google Sheets.'
-        : 'Status berhasil dicatat secara lokal (Google Sheets Web App URL belum aktif).',
+        : 'Status berhasil dicatat secara lokal.',
       sheetResponse,
     });
   } catch (error) {
