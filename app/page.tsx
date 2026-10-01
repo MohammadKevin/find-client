@@ -187,6 +187,7 @@ export default function LeadFinderApp() {
 
   const [query, setQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('Malang');
+  const [selectedCities, setSelectedCities] = useState<string[]>(['Malang']);
   const [selectedCategoryPreset, setSelectedCategoryPreset] = useState(PRESET_CATEGORIES[1].query);
   const [filterNoWebsiteOnly, setFilterNoWebsiteOnly] = useState(false);
   const [filterValidWaOnly, setFilterValidWaOnly] = useState(false);
@@ -483,38 +484,76 @@ export default function LeadFinderApp() {
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const finalQuery = (query || `${selectedCategoryPreset} di ${selectedCity}`).trim();
-    if (!finalQuery) return;
+
+    // Determine cities to search: multi-select or single
+    const citiesToSearch = selectedCities.length > 0 ? selectedCities : [selectedCity];
+    const categoryQuery = selectedCategoryPreset || query;
+    if (!categoryQuery && !query) return;
+
     setIsLoading(true);
     setErrorMessage(null);
-    try {
-      const res = await fetch('/api/places', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: finalQuery, apiKey: serpApiKey || undefined, marketMode, excludeFranchise: excludeFranchiseToggle }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setErrorMessage(data.error || 'Terjadi kesalahan saat mencari prospek.'); return; }
-      if (Array.isArray(data.places)) {
-        const newPlaces: PlaceLead[] = data.places;
-        const dedupedPlaces = newPlaces.filter((place) => {
-          const p = place.phoneAnalysis?.cleaned || normalizeWhatsAppNumber(place.nationalPhoneNumber);
-          if (!p) return true;
-          if (existingCrmPhones.has(p)) return false;
-          if (leads.some((l) => l.phoneAnalysis?.cleaned === p)) return false;
-          return true;
+
+    let allPlaces: PlaceLead[] = [];
+    let totalFranchiseBlocked = 0;
+    let errors: string[] = [];
+
+    for (let ci = 0; ci < citiesToSearch.length; ci++) {
+      const city = citiesToSearch[ci];
+      const finalQuery = query.trim() ? `${query} di ${city}` : `${categoryQuery} di ${city}`;
+      setBatchProgress({ current: ci + 1, total: citiesToSearch.length });
+
+      try {
+        const res = await fetch('/api/places', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: finalQuery, apiKey: serpApiKey || undefined, marketMode, excludeFranchise: excludeFranchiseToggle }),
         });
-        const dupCount = newPlaces.length - dedupedPlaces.length;
-        if (dupCount > 0) showToast('success', `${dupCount} prospek duplikat dilewati (sudah ada di CRM).`);
-        const enhanced: LeadWithMeta[] = dedupedPlaces.map((place: PlaceLead) => {
-          const detectedCat = detectCategory(place.name, finalQuery);
-          const currentStatus: OutreachStatus = isPhoneContacted(place.phoneAnalysis?.cleaned, phoneRegistry) ? 'contacted' : 'new';
-          return { ...place, status: currentStatus, leadStatus: place.leadStatus || 'QUALIFIED', selectedCategory: detectedCat, rejectionReason: place.rejectionReason || null };
-        });
-        setLeads(enhanced);
-        showToast('success', `Menemukan ${enhanced.length} prospek baru (${dupCount} duplikat, ${data.excludedFranchiseCount || 0} franchise diblokir).`);
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.places)) {
+          allPlaces.push(...data.places);
+          totalFranchiseBlocked += data.excludedFranchiseCount || 0;
+        } else if (!res.ok) {
+          errors.push(`${city}: ${data.error || 'Gagal'}`);
+        }
+      } catch {
+        errors.push(`${city}: Network error`);
       }
-    } catch { setErrorMessage('Gagal menghubungi server pencarian.'); }
-    finally { setIsLoading(false); }
+
+      if (ci < citiesToSearch.length - 1) await new Promise((r) => setTimeout(r, 800));
+    }
+
+    setBatchProgress(null);
+
+    if (allPlaces.length === 0) {
+      setErrorMessage(errors.length > 0 ? `Gagal mencari: ${errors.join('; ')}` : 'Tidak ada hasil ditemukan.');
+      setIsLoading(false);
+      return;
+    }
+
+    // Deduplicate across all cities + existing CRM
+    const seenPhones = new Set<string>();
+    const dedupedPlaces = allPlaces.filter((place) => {
+      const p = place.phoneAnalysis?.cleaned || normalizeWhatsAppNumber(place.nationalPhoneNumber);
+      if (!p) return true;
+      if (seenPhones.has(p)) return false;
+      if (existingCrmPhones.has(p)) return false;
+      if (leads.some((l) => l.phoneAnalysis?.cleaned === p)) return false;
+      seenPhones.add(p);
+      return true;
+    });
+
+    const dupCount = allPlaces.length - dedupedPlaces.length;
+    if (dupCount > 0) showToast('success', `${dupCount} prospek duplikat dilewati.`);
+
+    const enhanced: LeadWithMeta[] = dedupedPlaces.map((place: PlaceLead) => {
+      const detectedCat = detectCategory(place.name, place.formattedAddress);
+      const currentStatus: OutreachStatus = isPhoneContacted(place.phoneAnalysis?.cleaned, phoneRegistry) ? 'contacted' : 'new';
+      return { ...place, status: currentStatus, leadStatus: place.leadStatus || 'QUALIFIED', selectedCategory: detectedCat, rejectionReason: place.rejectionReason || null };
+    });
+
+    setLeads(enhanced);
+    const cityLabel = citiesToSearch.length > 1 ? `${citiesToSearch.length} kota` : citiesToSearch[0];
+    showToast('success', `Menemukan ${enhanced.length} prospek dari ${cityLabel} (${totalFranchiseBlocked} franchise diblokir).`);
+    setIsLoading(false);
   };
 
   const filteredLeads = useMemo(() => {
@@ -1038,26 +1077,54 @@ export default function LeadFinderApp() {
                 <form onSubmit={handleSearch} className="space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
                     <div className="md:col-span-4">
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Kota / Wilayah</label>
-                      <select aria-label="Pilih Kota" value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)} className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-slate-900 cursor-pointer">
-                        {marketMode === 'indo' ? INDONESIA_REGIONS.map((grp) => (<optgroup key={grp.region} label={grp.region}>{grp.cities.map((city) => (<option key={city} value={city}>{city}</option>))}</optgroup>)) : GLOBAL_REGIONS.map((grp) => (<optgroup key={grp.region} label={grp.region}>{grp.cities.map((city) => (<option key={city} value={city}>{city} ({grp.region.split(' ')[0]})</option>))}</optgroup>))}
-                      </select>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Kota / Wilayah (bisa pilih banyak)</label>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-1.5">
+                        {(marketMode === 'indo' ? INDONESIA_REGIONS : GLOBAL_REGIONS).map((grp) => (
+                          <div key={grp.region}>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase px-1 pt-1">{grp.region}</p>
+                            {grp.cities.map((city) => {
+                              const isSelected = selectedCities.includes(city);
+                              return (
+                                <label key={city} className={`flex items-center gap-1.5 px-2 py-0.5 rounded cursor-pointer text-[11px] hover:bg-slate-50 ${isSelected ? 'bg-emerald-50 font-semibold text-slate-900' : 'text-slate-600'}`}>
+                                  <input type="checkbox" checked={isSelected} onChange={() => { setSelectedCities((prev) => prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city]); }} className="rounded border-slate-300 text-emerald-600 focus:ring-0 cursor-pointer" />
+                                  {city}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <button type="button" onClick={() => {
+                          const all = (marketMode === 'indo' ? INDONESIA_REGIONS : GLOBAL_REGIONS).flatMap((g) => g.cities);
+                          setSelectedCities(all);
+                        }} className="text-[9px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Pilih Semua</button>
+                        <button type="button" onClick={() => setSelectedCities([])} className="text-[9px] font-semibold text-slate-400 hover:text-slate-600 cursor-pointer">Reset</button>
+                        <span className="text-[9px] text-slate-400 ml-auto">{selectedCities.length} kota</span>
+                      </div>
                     </div>
                     <div className="md:col-span-8">
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Kata Kunci</label>
                       <div className="relative flex items-center">
-                        <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Misal: ${selectedCategoryPreset || 'Kos'} di ${selectedCity}`} className="w-full text-xs font-medium py-2 pl-3 pr-24 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-900" />
-                        <button type="submit" disabled={isLoading} className="absolute right-1 px-3 py-1.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5">
-                          <FontAwesomeIcon icon={faSearch} className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} /><span>{isLoading ? 'Mencari...' : 'Cari'}</span>
+                        <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Misal: ${selectedCategoryPreset || 'Kos'} di ${selectedCities[0] || 'Kota'}`} className="w-full text-xs font-medium py-2 pl-3 pr-24 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-900" />
+                        <button type="submit" disabled={isLoading || selectedCities.length === 0} className="absolute right-1 px-3 py-1.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5">
+                          <FontAwesomeIcon icon={faSearch} className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} /><span>{isLoading ? 'Mencari...' : 'Cari Bulk'}</span>
                         </button>
                       </div>
                     </div>
                   </div>
 
+                  {isLoading && batchProgress && (
+                    <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faSpinner} className="h-3 w-3 animate-spin" />
+                      <span>Mencari di {batchProgress.current}/{batchProgress.total} kota...</span>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Kategori:</span>
                     {(marketMode === 'indo' ? PRESET_CATEGORIES : GLOBAL_PRESET_CATEGORIES).map((cat) => (
-                      <button key={cat.label} type="button" onClick={() => { setSelectedCategoryPreset(cat.query); setQuery(cat.query ? `${cat.query} di ${selectedCity}` : ''); }} className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${selectedCategoryPreset === cat.query ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{cat.label}</button>
+                      <button key={cat.label} type="button" onClick={() => { setSelectedCategoryPreset(cat.query); setQuery(cat.query ? `${cat.query} di ${selectedCities[0] || ''}` : ''); }} className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${selectedCategoryPreset === cat.query ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{cat.label}</button>
                     ))}
                   </div>
 
