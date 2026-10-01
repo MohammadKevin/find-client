@@ -1530,203 +1530,74 @@ if (Array.isArray(data.remoteRecords)) {
 
         {/* PAGE CONTENT CONTAINER */}
         <div className="p-6 flex-1 space-y-6 max-w-7xl w-full mx-auto">
-          {/* VIEW 0: DAILY MISSION */}
+          {/* VIEW 0: DAILY MISSION — PUSH-BUTTON WORKFLOW */}
           {activeTab === 'mission' && (
             <div className="space-y-5">
-              {/* Mission Progress Card */}
+              {/* Big Stats Bar */}
               <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">Progress Misi Hari Ini</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Kirim {missionDailyTarget} pesan WA per hari untuk dapat 1 klien/minggu</p>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                  <div className="p-4 bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-xl text-white text-center shadow-md">
+                    <p className="text-3xl font-mono font-bold">{missionTodaySent}</p>
+                    <p className="text-[10px] font-semibold uppercase opacity-80">Terkirim Hari Ini</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-mono font-bold text-emerald-600">{missionTodaySent}</p>
-                    <p className="text-[10px] text-slate-400 uppercase font-semibold">dari {missionDailyTarget} target</p>
+                  <div className="p-4 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl text-white text-center shadow-md">
+                    <p className="text-3xl font-mono font-bold">{missionTodayReplies}</p>
+                    <p className="text-[10px] font-semibold uppercase opacity-80">Balasan (Reply)</p>
+                  </div>
+                  <div className="p-4 bg-gradient-to-br from-purple-600 to-purple-800 rounded-xl text-white text-center shadow-md">
+                    <p className="text-3xl font-mono font-bold">{missionWeekMeetings}</p>
+                    <p className="text-[10px] font-semibold uppercase opacity-80">Meeting Minggu Ini</p>
+                  </div>
+                  <div className="p-4 bg-gradient-to-br from-slate-700 to-slate-900 rounded-xl text-white text-center shadow-md">
+                    <p className="text-3xl font-mono font-bold">{Math.max(0, missionDailyTarget - missionTodaySent)}</p>
+                    <p className="text-[10px] font-semibold uppercase opacity-80">Sisa Target Hari Ini</p>
                   </div>
                 </div>
-
-                {/* Progress Bar */}
-                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-4">
+                <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-300"
+                    className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-300"
                     style={{ width: `${Math.min(100, (missionTodaySent / missionDailyTarget) * 100)}%` }}
                   />
                 </div>
-
-                {/* Stats Grid */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-center">
-                    <p className="text-lg font-mono font-bold text-emerald-700">{missionTodaySent}</p>
-                    <p className="text-[10px] text-emerald-600 font-semibold uppercase">Terkirim</p>
-                  </div>
-                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
-                    <p className="text-lg font-mono font-bold text-blue-700">{missionTodayReplies}</p>
-                    <p className="text-[10px] text-blue-600 font-semibold uppercase">Reply</p>
-                  </div>
-                  <div className="p-3 bg-purple-50 rounded-lg border border-purple-200 text-center">
-                    <p className="text-lg font-mono font-bold text-purple-700">{missionWeekMeetings}</p>
-                    <p className="text-[10px] text-purple-600 font-semibold uppercase">Meeting Minggu Ini</p>
-                  </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-[10px] text-slate-400">0</span>
+                  <span className="text-[10px] font-semibold text-slate-500">{missionDailyTarget} target harian</span>
                 </div>
-
-                {missionTodaySent >= missionDailyTarget && (
-                  <div className="mt-4 p-3 bg-emerald-100 border border-emerald-300 rounded-lg text-center">
-                    <p className="text-xs font-bold text-emerald-800">🎉 Target harian tercapai! Kerja bagus.</p>
-                  </div>
-                )}
               </div>
-
-              {/* Daily Target Config */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Konfigurasi Misi</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs flex flex-col justify-between space-y-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Target Harian (WA)</label>
-                    <input
-                      type="number"
-                      min={5}
-                      max={100}
-                      value={missionDailyTarget}
-                      onChange={(e) => setMissionDailyTarget(Number(e.target.value))}
-                      className="w-full text-xs py-2 px-3 rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-slate-900"
-                    />
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold uppercase">Rekomendasi</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{savedLeadsCrm.filter(l => (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') && l.phoneAnalysis?.isValid && l.phoneAnalysis?.isMobile).length} siap kirim</span>
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900">Kirim Prospek Baru</h3>
+                    <p className="text-[11px] text-slate-500 mt-1">Auto-pilih prospek NEW & QUALIFIED dari CRM, generate pitch AI, kirim WA dengan jeda aman.</p>
                   </div>
-                  <div className="flex items-end gap-2">
-                    <button
-                      onClick={() => {
-                        localStorage.setItem('leads_mission_target', String(missionDailyTarget));
-                        showToast('success', `Target harian diatur ke ${missionDailyTarget} WA.`);
-                      }}
-                      className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer"
-                    >
-                      Simpan Target
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm('Reset progress hari ini?')) {
-                          setMissionTodaySent(0);
-                          localStorage.removeItem('leads_mission_today');
-                          showToast('success', 'Progress hari ini direset.');
-                        }
-                      }}
-                      className="px-4 py-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold cursor-pointer"
-                    >
-                      Reset Hari Ini
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Actions — Auto Pick & Send */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Aksi Cepat Outreach</h4>
-
-                {/* Available Leads Summary */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-sm font-mono font-bold text-slate-900">{savedLeadsCrm.filter(l => l.leadStatus === 'NEW').length}</p>
-                    <p className="text-[9px] text-slate-500 uppercase font-semibold">NEW belum dikirim</p>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-sm font-mono font-bold text-slate-900">{savedLeadsCrm.filter(l => l.leadStatus === 'QUALIFIED').length}</p>
-                    <p className="text-[9px] text-slate-500 uppercase font-semibold">QUALIFIED siap kirim</p>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-sm font-mono font-bold text-indigo-700">{savedLeadsCrm.filter(l => l.leadStatus === 'INTERESTED').length}</p>
-                    <p className="text-[9px] text-indigo-500 uppercase font-semibold">INTERESTED follow-up</p>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-sm font-mono font-bold text-cyan-700">{savedLeadsCrm.filter(l => l.leadStatus === 'IN_PROGRESS').length}</p>
-                    <p className="text-[9px] text-cyan-500 uppercase font-semibold">IN_PROGRESS deal</p>
-                  </div>
-                </div>
-
-                {/* Auto-pick & Generate + Send Batch */}
-                <div className="space-y-2">
                   <button
                     onClick={async () => {
                       const remaining = Math.max(0, missionDailyTarget - missionTodaySent);
-                      if (remaining === 0) {
-                        showToast('success', 'Target harian sudah tercapai! 🎉');
-                        return;
-                      }
-
-                      // Pick leads from CRM that are NEW or QUALIFIED and have valid mobile phone
-                      const candidates = savedLeadsCrm
-                        .filter((l) =>
-                          (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') &&
-                          l.phoneAnalysis?.isValid &&
-                          l.phoneAnalysis?.isMobile
-                        )
-                        .slice(0, remaining);
-
-                      if (candidates.length === 0) {
-                        showToast('error', 'Tidak ada prospek baru yang siap dikirim. Cari prospek dulu di Discovery.');
-                        return;
-                      }
-
+                      if (remaining === 0) { showToast('success', 'Target harian sudah tercapai!'); return; }
+                      const candidates = savedLeadsCrm.filter((l) => (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') && l.phoneAnalysis?.isValid && l.phoneAnalysis?.isMobile).slice(0, remaining);
+                      if (candidates.length === 0) { showToast('error', 'Tidak ada prospek baru. Cari dulu di tab Discovery.'); return; }
                       setIsMissionSending(true);
                       let sentCount = 0;
-
                       for (let i = 0; i < candidates.length; i++) {
                         const lead = candidates[i];
                         const cleanP = lead.phoneAnalysis.cleaned;
                         if (!cleanP) continue;
-
-                        // Generate pitch if not exists
                         let pitch = lead.generatedPitch || lead.aiMessage || '';
                         if (!pitch) {
                           try {
-                            const res = await fetch('/api/generate-pitch', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                businessName: lead.name,
-                                category: lead.selectedCategory,
-                                address: lead.formattedAddress,
-                                rating: lead.rating,
-                                userRatingCount: lead.userRatingCount,
-                                senderName,
-                                senderRole,
-                                marketMode,
-                                geminiKey: geminiApiKey || undefined,
-                              }),
-                            });
+                            const res = await fetch('/api/generate-pitch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessName: lead.name, category: lead.selectedCategory, address: lead.formattedAddress, rating: lead.rating, userRatingCount: lead.userRatingCount, senderName, senderRole, marketMode, geminiKey: geminiApiKey || undefined }) });
                             const data = await res.json();
-                            if (data.success && data.message) {
-                              pitch = data.message;
-                            } else {
-                              pitch = generateOutreachMessage({
-                                businessName: lead.name,
-                                category: lead.selectedCategory,
-                                rating: lead.rating,
-                                userRatingCount: lead.userRatingCount,
-                                address: lead.formattedAddress,
-                              });
-                            }
+                            pitch = data.success && data.message ? data.message : generateOutreachMessage({ businessName: lead.name, category: lead.selectedCategory, rating: lead.rating, userRatingCount: lead.userRatingCount, address: lead.formattedAddress });
                           } catch {
-                            pitch = generateOutreachMessage({
-                              businessName: lead.name,
-                              category: lead.selectedCategory,
-                              rating: lead.rating,
-                              userRatingCount: lead.userRatingCount,
-                              address: lead.formattedAddress,
-                            });
+                            pitch = generateOutreachMessage({ businessName: lead.name, category: lead.selectedCategory, rating: lead.rating, userRatingCount: lead.userRatingCount, address: lead.formattedAddress });
                           }
                         }
-
-                        // Send via Fonnte
                         try {
-                          const res = await fetch('/api/send-wa', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              target: cleanP,
-                              message: pitch,
-                              token: fonnteToken || undefined,
-                            }),
-                          });
+                          const res = await fetch('/api/send-wa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: cleanP, message: pitch, token: fonnteToken || undefined }) });
                           const data = await res.json();
                           if (res.ok && data.success) {
                             updateLeadStatus(lead.id, 'CONTACTED');
@@ -1736,33 +1607,75 @@ if (Array.isArray(data.remoteRecords)) {
                             localStorage.setItem('leads_mission_today', String(newTotal));
                           }
                         } catch {}
-
-                        // Random delay between sends (except last)
-                        if (i < candidates.length - 1) {
-                          const delay = getRandomDelayMs(45, 120);
-                          await new Promise((r) => setTimeout(r, delay));
-                        }
+                        if (i < candidates.length - 1) { await new Promise((r) => setTimeout(r, getRandomDelayMs(45, 120))); }
                       }
-
                       setIsMissionSending(false);
-                      showToast('success', `Selesai! ${sentCount} pesan terkirim hari ini. Total: ${missionTodaySent + sentCount}/${missionDailyTarget}`);
+                      showToast('success', `Selesai! ${sentCount} pesan terkirim. Total: ${missionTodaySent + sentCount}/${missionDailyTarget}`);
                     }}
                     disabled={isMissionSending}
-                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                    className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-base flex items-center justify-center gap-3 cursor-pointer shadow-md transition-all active:scale-[0.98]"
                   >
                     <FontAwesomeIcon icon={faBolt} className={`h-5 w-5 ${isMissionSending ? 'animate-spin' : ''}`} />
-                    <span>{isMissionSending ? 'Mengirim...' : `Kirim Sisa Target Hari Ini (${Math.max(0, missionDailyTarget - missionTodaySent)})`}</span>
+                    <span>{isMissionSending ? 'Mengirim...' : (() => { const available = savedLeadsCrm.filter((l: LeadWithMeta) => (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') && l.phoneAnalysis?.isValid && l.phoneAnalysis?.isMobile).length; const rem = Math.max(0, missionDailyTarget - missionTodaySent); return 'Kirim Semua (' + Math.min(available, rem) + ')'; })()}</span>
                   </button>
-
+                </div>
+                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs flex flex-col justify-between space-y-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[9px] font-bold uppercase">Follow-up</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{savedLeadsCrm.filter(l => l.leadStatus === 'INTERESTED').length} butuh follow-up</span>
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900">Follow-up INTERESTED</h3>
+                    <p className="text-[11px] text-slate-500 mt-1">Kirim pesan follow-up ke prospek yang sudah tertarik. Tanya kabar, kasih info tambahan, dorong ke meeting.</p>
+                  </div>
                   <button
-                    onClick={() => setActiveTab('search')}
-                    className="w-full py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                    onClick={async () => {
+                      const candidates = savedLeadsCrm.filter((l) => l.leadStatus === 'INTERESTED' && l.phoneAnalysis?.isValid && l.phoneAnalysis?.isMobile);
+                      if (candidates.length === 0) { showToast('error', 'Tidak ada prospek INTERESTED.'); return; }
+                      setIsMissionSending(true);
+                      let sentCount = 0;
+                      for (let i = 0; i < candidates.length; i++) {
+                        const lead = candidates[i];
+                        const cleanP = lead.phoneAnalysis.cleaned;
+                        if (!cleanP) continue;
+                        const followUpMsg = 'Halo ' + lead.name.split(' ')[0] + ', saya Kevin (sebelumnya saya WA). Ada yang bisa saya bantu lebih lanjut? Saya siap jadwalkan meeting singkat atau kirimkan portfolio. Terima kasih!';
+                        try {
+                          const res = await fetch('/api/send-wa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: cleanP, message: followUpMsg, token: fonnteToken || undefined }) });
+                          const data = await res.json();
+                          if (res.ok && data.success) { sentCount++; }
+                        } catch {}
+                        if (i < candidates.length - 1) { await new Promise((r) => setTimeout(r, getRandomDelayMs(45, 90))); }
+                      }
+                      setIsMissionSending(false);
+                      showToast('success', sentCount + ' follow-up terkirim ke prospek INTERESTED.');
+                    }}
+                    disabled={isMissionSending}
+                    className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-base flex items-center justify-center gap-3 cursor-pointer shadow-md transition-all active:scale-[0.98]"
                   >
-                    <FontAwesomeIcon icon={faSearch} className="h-4 w-4 text-slate-500" />
-                    <span>Cari Prospek Baru</span>
+                    <FontAwesomeIcon icon={faMessage} className={'h-5 w-5' + (isMissionSending ? ' animate-spin' : '')} />
+                    <span>{isMissionSending ? 'Mengirim...' : 'Follow-up Semua (' + savedLeadsCrm.filter(l => l.leadStatus === 'INTERESTED').length + ')'}</span>
                   </button>
                 </div>
               </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Target Harian</span>
+                  <div className="flex items-center gap-1">
+                    {[10, 20, 30, 50].map((n) => (
+                      <button key={n} onClick={() => { setMissionDailyTarget(n); localStorage.setItem('leads_mission_target', String(n)); }} className={'px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ' + (missionDailyTarget === n ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>{n}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { if (confirm('Reset progress hari ini?')) { setMissionTodaySent(0); localStorage.removeItem('leads_mission_today'); showToast('success', 'Progress direset.'); } }} className="px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold cursor-pointer">Reset Hari Ini</button>
+                  <button onClick={() => setActiveTab('search')} className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer">+ Cari Prospek Baru</button>
+                </div>
+              </div>
+              {missionTodaySent >= missionDailyTarget && (
+                <div className="p-4 bg-emerald-100 border border-emerald-300 rounded-xl text-center">
+                  <p className="text-sm font-bold text-emerald-800">Target harian tercapai! Istirahat atau cari prospek baru untuk persiapan besok.</p>
+                </div>
+              )}
             </div>
           )}
 
