@@ -42,7 +42,7 @@ import {
 } from '@/lib/phone-utils';
 import { getRandomDelayMs } from '@/lib/whatsapp-queue';
 
-type ActiveTab = 'search' | 'crm' | 'copilot' | 'templates' | 'export';
+type ActiveTab = 'mission' | 'search' | 'crm' | 'copilot' | 'templates' | 'export';
 type OutreachStatus = 'new' | 'contacted' | 'followup' | 'closed' | 'rejected' | 'in_progress' | 'lost_franchise' | 'lost_rejected';
 type CrmFilterStatus = 'all' | 'NEW' | 'QUALIFIED' | 'CONTACTED' | 'INTERESTED' | 'IN_PROGRESS' | 'LOST_FRANCHISE' | 'LOST_REJECTED' | 'CLOSED';
 
@@ -372,7 +372,7 @@ export default function LeadFinderApp() {
   ];
 
   const [isAppLoading, setIsAppLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('search');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('mission');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const [marketMode, setMarketMode] = useState<'indo' | 'global'>('indo');
@@ -425,6 +425,39 @@ export default function LeadFinderApp() {
   const [copilotIntent, setCopilotIntent] = useState<string | null>(null);
   const [isGeneratingCopilot, setIsGeneratingCopilot] = useState(false);
   const [isSendingCopilot, setIsSendingCopilot] = useState(false);
+
+  const [existingCrmPhones, setExistingCrmPhones] = useState<Set<string>>(new Set());
+
+  const [missionDailyTarget, setMissionDailyTarget] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('leads_mission_target');
+      return saved ? Number(saved) : 20;
+    }
+    return 20;
+  });
+  const [missionTodaySent, setMissionTodaySent] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('leads_mission_today');
+      return saved ? Number(saved) : 0;
+    }
+    return 0;
+  });
+  const [missionTodayReplies, setMissionTodayReplies] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('leads_mission_replies');
+      return saved ? Number(saved) : 0;
+    }
+    return 0;
+  });
+  const [missionWeekMeetings, setMissionWeekMeetings] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('leads_mission_meetings');
+      return saved ? Number(saved) : 0;
+    }
+    return 0;
+  });
+  const [missionAutoSchedule, setMissionAutoSchedule] = useState(false);
+  const [isMissionSending, setIsMissionSending] = useState(false);
 
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
@@ -616,6 +649,12 @@ export default function LeadFinderApp() {
           );
 
           setSavedLeadsCrm(sheetLeads);
+          const phoneSet = new Set<string>();
+          sheetLeads.forEach((l) => {
+            const p = l.phoneAnalysis?.cleaned || normalizeWhatsAppNumber(l.nationalPhoneNumber);
+            if (p) phoneSet.add(p);
+          });
+          setExistingCrmPhones(phoneSet);
           try {
             localStorage.setItem('lead_saved_crm_records', JSON.stringify(sheetLeads));
           } catch {}
@@ -674,11 +713,18 @@ export default function LeadFinderApp() {
             localStorage.setItem('lead_phone_registry', JSON.stringify(nextRegistry));
           } catch {}
 
-          if (Array.isArray(data.remoteRecords)) {
-            const sheetLeads: LeadWithMeta[] = data.remoteRecords.map((record: RemoteSheetRecord, idx: number) =>
-              mapRemoteRecordToLead(record, idx)
-            );
-            setSavedLeadsCrm(sheetLeads);
+if (Array.isArray(data.remoteRecords)) {
+          const sheetLeads: LeadWithMeta[] = data.remoteRecords.map((record: RemoteSheetRecord, idx: number) =>
+            mapRemoteRecordToLead(record, idx)
+          );
+          setSavedLeadsCrm(sheetLeads);
+
+          const phoneSet = new Set<string>();
+          sheetLeads.forEach((l) => {
+            const p = l.phoneAnalysis?.cleaned || normalizeWhatsAppNumber(l.nationalPhoneNumber);
+            if (p) phoneSet.add(p);
+          });
+          setExistingCrmPhones(phoneSet);
             try {
               localStorage.setItem('lead_saved_crm_records', JSON.stringify(sheetLeads));
             } catch {}
@@ -804,7 +850,23 @@ export default function LeadFinderApp() {
       }
 
       if (Array.isArray(data.places)) {
-        const enhanced: LeadWithMeta[] = data.places.map((place: PlaceLead) => {
+        const newPlaces: PlaceLead[] = data.places;
+
+        // Duplicate detection: filter out leads already in CRM or current search
+        const dedupedPlaces = newPlaces.filter((place) => {
+          const p = place.phoneAnalysis?.cleaned || normalizeWhatsAppNumber(place.nationalPhoneNumber);
+          if (!p) return true;
+          if (existingCrmPhones.has(p)) return false;
+          if (leads.some((l) => l.phoneAnalysis?.cleaned === p)) return false;
+          return true;
+        });
+
+        const dupCount = newPlaces.length - dedupedPlaces.length;
+        if (dupCount > 0) {
+          showToast('success', `${dupCount} prospek duplikat dilewati (sudah ada di CRM).`);
+        }
+
+        const enhanced: LeadWithMeta[] = dedupedPlaces.map((place: PlaceLead) => {
           const detectedCat = detectCategory(place.name, finalQuery);
           const currentStatus: OutreachStatus = isPhoneContacted(place.phoneAnalysis?.cleaned, phoneRegistry)
             ? 'contacted'
@@ -822,7 +884,7 @@ export default function LeadFinderApp() {
         setLeads(enhanced);
         showToast(
           'success',
-          `Menemukan ${enhanced.length} prospek (${data.excludedFranchiseCount || 0} cabang/franchise diblokir).`
+          `Menemukan ${enhanced.length} prospek baru (${dupCount} duplikat, ${data.excludedFranchiseCount || 0} franchise diblokir).`
         );
       }
     } catch (err: unknown) {
@@ -1260,6 +1322,26 @@ export default function LeadFinderApp() {
           <nav className="mt-4 space-y-1 flex-1">
             <button
               onClick={() => {
+                setActiveTab('mission');
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+                activeTab === 'mission'
+                  ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <FontAwesomeIcon icon={faBolt} className={`h-4 w-4 ${activeTab === 'mission' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                <span>Misi Harian</span>
+              </div>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {missionDailyTarget - missionTodaySent > 0 ? missionDailyTarget - missionTodaySent : 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab('search');
                 setMobileSidebarOpen(false);
               }}
@@ -1363,8 +1445,22 @@ export default function LeadFinderApp() {
             </button>
           </nav>
 
-          {/* Sidebar Footer: Profile & Logout */}
-          <div className="pt-4 border-t border-slate-100 space-y-3">
+          {/* Sidebar Footer: Stats + Logout */}
+          <div className="pt-3 border-t border-slate-100 space-y-2">
+            <div className="grid grid-cols-3 gap-1 text-center">
+              <div className="p-1.5 rounded bg-emerald-50 border border-emerald-200">
+                <p className="text-[9px] font-bold text-emerald-700">{missionTodaySent}</p>
+                <p className="text-[7px] text-emerald-500 uppercase">Terkirim</p>
+              </div>
+              <div className="p-1.5 rounded bg-blue-50 border border-blue-200">
+                <p className="text-[9px] font-bold text-blue-700">{missionTodayReplies}</p>
+                <p className="text-[7px] text-blue-500 uppercase">Reply</p>
+              </div>
+              <div className="p-1.5 rounded bg-purple-50 border border-purple-200">
+                <p className="text-[9px] font-bold text-purple-700">{missionWeekMeetings}</p>
+                <p className="text-[7px] text-purple-500 uppercase">Meeting</p>
+              </div>
+            </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-700">
@@ -1400,6 +1496,7 @@ export default function LeadFinderApp() {
             </button>
             <div>
               <h1 className="text-sm font-bold text-slate-900 tracking-tight capitalize truncate">
+                {activeTab === 'mission' && 'Misi Harian — Kirim 20 WA per Hari'}
                 {activeTab === 'search' && (marketMode === 'global' ? 'Global Prospecting (UK, US, EU)' : 'Discovery & Lead Qualification')}
                 {activeTab === 'crm' && 'Pipeline CRM (Google Sheets Mirror)'}
                 {activeTab === 'copilot' && 'AI Response Copilot (Incoming Chat Manager)'}
@@ -1407,6 +1504,7 @@ export default function LeadFinderApp() {
                 {activeTab === 'export' && 'Export Database & WhatsApp Numbers'}
               </h1>
               <p className="text-[11px] text-slate-400 truncate">
+                {activeTab === 'mission' && `Target: ${missionDailyTarget} WA/hari | Kirim ${missionTodaySent} | Sisa ${Math.max(0, missionDailyTarget - missionTodaySent)}`}
                 {activeTab === 'search' && 'Cari bisnis lokal independen dengan ulasan 10–100 & tanpa website'}
                 {activeTab === 'crm' && 'Single Source of Truth 11-kolom sinkron realtime ke Google Spreadsheet'}
                 {activeTab === 'copilot' && 'Deteksi penolakan franchise otomatis atau take over lead berminat'}
@@ -1432,6 +1530,242 @@ export default function LeadFinderApp() {
 
         {/* PAGE CONTENT CONTAINER */}
         <div className="p-6 flex-1 space-y-6 max-w-7xl w-full mx-auto">
+          {/* VIEW 0: DAILY MISSION */}
+          {activeTab === 'mission' && (
+            <div className="space-y-5">
+              {/* Mission Progress Card */}
+              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Progress Misi Hari Ini</h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Kirim {missionDailyTarget} pesan WA per hari untuk dapat 1 klien/minggu</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-mono font-bold text-emerald-600">{missionTodaySent}</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-semibold">dari {missionDailyTarget} target</p>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-4">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-300"
+                    style={{ width: `${Math.min(100, (missionTodaySent / missionDailyTarget) * 100)}%` }}
+                  />
+                </div>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-center">
+                    <p className="text-lg font-mono font-bold text-emerald-700">{missionTodaySent}</p>
+                    <p className="text-[10px] text-emerald-600 font-semibold uppercase">Terkirim</p>
+                  </div>
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
+                    <p className="text-lg font-mono font-bold text-blue-700">{missionTodayReplies}</p>
+                    <p className="text-[10px] text-blue-600 font-semibold uppercase">Reply</p>
+                  </div>
+                  <div className="p-3 bg-purple-50 rounded-lg border border-purple-200 text-center">
+                    <p className="text-lg font-mono font-bold text-purple-700">{missionWeekMeetings}</p>
+                    <p className="text-[10px] text-purple-600 font-semibold uppercase">Meeting Minggu Ini</p>
+                  </div>
+                </div>
+
+                {missionTodaySent >= missionDailyTarget && (
+                  <div className="mt-4 p-3 bg-emerald-100 border border-emerald-300 rounded-lg text-center">
+                    <p className="text-xs font-bold text-emerald-800">🎉 Target harian tercapai! Kerja bagus.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Daily Target Config */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Konfigurasi Misi</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Target Harian (WA)</label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={100}
+                      value={missionDailyTarget}
+                      onChange={(e) => setMissionDailyTarget(Number(e.target.value))}
+                      className="w-full text-xs py-2 px-3 rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-slate-900"
+                    />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <button
+                      onClick={() => {
+                        localStorage.setItem('leads_mission_target', String(missionDailyTarget));
+                        showToast('success', `Target harian diatur ke ${missionDailyTarget} WA.`);
+                      }}
+                      className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer"
+                    >
+                      Simpan Target
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Reset progress hari ini?')) {
+                          setMissionTodaySent(0);
+                          localStorage.removeItem('leads_mission_today');
+                          showToast('success', 'Progress hari ini direset.');
+                        }
+                      }}
+                      className="px-4 py-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold cursor-pointer"
+                    >
+                      Reset Hari Ini
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions — Auto Pick & Send */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Aksi Cepat Outreach</h4>
+
+                {/* Available Leads Summary */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-sm font-mono font-bold text-slate-900">{savedLeadsCrm.filter(l => l.leadStatus === 'NEW').length}</p>
+                    <p className="text-[9px] text-slate-500 uppercase font-semibold">NEW belum dikirim</p>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-sm font-mono font-bold text-slate-900">{savedLeadsCrm.filter(l => l.leadStatus === 'QUALIFIED').length}</p>
+                    <p className="text-[9px] text-slate-500 uppercase font-semibold">QUALIFIED siap kirim</p>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-sm font-mono font-bold text-indigo-700">{savedLeadsCrm.filter(l => l.leadStatus === 'INTERESTED').length}</p>
+                    <p className="text-[9px] text-indigo-500 uppercase font-semibold">INTERESTED follow-up</p>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-sm font-mono font-bold text-cyan-700">{savedLeadsCrm.filter(l => l.leadStatus === 'IN_PROGRESS').length}</p>
+                    <p className="text-[9px] text-cyan-500 uppercase font-semibold">IN_PROGRESS deal</p>
+                  </div>
+                </div>
+
+                {/* Auto-pick & Generate + Send Batch */}
+                <div className="space-y-2">
+                  <button
+                    onClick={async () => {
+                      const remaining = Math.max(0, missionDailyTarget - missionTodaySent);
+                      if (remaining === 0) {
+                        showToast('success', 'Target harian sudah tercapai! 🎉');
+                        return;
+                      }
+
+                      // Pick leads from CRM that are NEW or QUALIFIED and have valid mobile phone
+                      const candidates = savedLeadsCrm
+                        .filter((l) =>
+                          (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') &&
+                          l.phoneAnalysis?.isValid &&
+                          l.phoneAnalysis?.isMobile
+                        )
+                        .slice(0, remaining);
+
+                      if (candidates.length === 0) {
+                        showToast('error', 'Tidak ada prospek baru yang siap dikirim. Cari prospek dulu di Discovery.');
+                        return;
+                      }
+
+                      setIsMissionSending(true);
+                      let sentCount = 0;
+
+                      for (let i = 0; i < candidates.length; i++) {
+                        const lead = candidates[i];
+                        const cleanP = lead.phoneAnalysis.cleaned;
+                        if (!cleanP) continue;
+
+                        // Generate pitch if not exists
+                        let pitch = lead.generatedPitch || lead.aiMessage || '';
+                        if (!pitch) {
+                          try {
+                            const res = await fetch('/api/generate-pitch', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                businessName: lead.name,
+                                category: lead.selectedCategory,
+                                address: lead.formattedAddress,
+                                rating: lead.rating,
+                                userRatingCount: lead.userRatingCount,
+                                senderName,
+                                senderRole,
+                                marketMode,
+                                geminiKey: geminiApiKey || undefined,
+                              }),
+                            });
+                            const data = await res.json();
+                            if (data.success && data.message) {
+                              pitch = data.message;
+                            } else {
+                              pitch = generateOutreachMessage({
+                                businessName: lead.name,
+                                category: lead.selectedCategory,
+                                rating: lead.rating,
+                                userRatingCount: lead.userRatingCount,
+                                address: lead.formattedAddress,
+                              });
+                            }
+                          } catch {
+                            pitch = generateOutreachMessage({
+                              businessName: lead.name,
+                              category: lead.selectedCategory,
+                              rating: lead.rating,
+                              userRatingCount: lead.userRatingCount,
+                              address: lead.formattedAddress,
+                            });
+                          }
+                        }
+
+                        // Send via Fonnte
+                        try {
+                          const res = await fetch('/api/send-wa', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              target: cleanP,
+                              message: pitch,
+                              token: fonnteToken || undefined,
+                            }),
+                          });
+                          const data = await res.json();
+                          if (res.ok && data.success) {
+                            updateLeadStatus(lead.id, 'CONTACTED');
+                            sentCount++;
+                            const newTotal = missionTodaySent + sentCount;
+                            setMissionTodaySent(newTotal);
+                            localStorage.setItem('leads_mission_today', String(newTotal));
+                          }
+                        } catch {}
+
+                        // Random delay between sends (except last)
+                        if (i < candidates.length - 1) {
+                          const delay = getRandomDelayMs(45, 120);
+                          await new Promise((r) => setTimeout(r, delay));
+                        }
+                      }
+
+                      setIsMissionSending(false);
+                      showToast('success', `Selesai! ${sentCount} pesan terkirim hari ini. Total: ${missionTodaySent + sentCount}/${missionDailyTarget}`);
+                    }}
+                    disabled={isMissionSending}
+                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                  >
+                    <FontAwesomeIcon icon={faBolt} className={`h-5 w-5 ${isMissionSending ? 'animate-spin' : ''}`} />
+                    <span>{isMissionSending ? 'Mengirim...' : `Kirim Sisa Target Hari Ini (${Math.max(0, missionDailyTarget - missionTodaySent)})`}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('search')}
+                    className="w-full py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <FontAwesomeIcon icon={faSearch} className="h-4 w-4 text-slate-500" />
+                    <span>Cari Prospek Baru</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* VIEW 1: DISCOVERY & SEARCH */}
           {activeTab === 'search' && (
             <div className="space-y-6">
@@ -1827,6 +2161,90 @@ export default function LeadFinderApp() {
                     <span>Export CSV</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Funnel Visualization */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Funnel Pipeline & Konversi</h4>
+                <div className="space-y-2">
+                  {(() => {
+                    const total = savedLeadsCrm.length || 1;
+                    const stages = [
+                      { key: 'NEW', label: 'NEW', color: 'bg-amber-400' },
+                      { key: 'QUALIFIED', label: 'QUALIFIED', color: 'bg-blue-400' },
+                      { key: 'CONTACTED', label: 'CONTACTED', color: 'bg-emerald-400' },
+                      { key: 'INTERESTED', label: 'INTERESTED', color: 'bg-indigo-400' },
+                      { key: 'IN_PROGRESS', label: 'IN_PROGRESS', color: 'bg-cyan-400' },
+                      { key: 'CLOSED', label: 'CLOSED (DEAL)', color: 'bg-purple-400' },
+                    ];
+                    return stages.map((stage, idx) => {
+                      const count = savedLeadsCrm.filter((l) => (l.leadStatus || 'NEW').toUpperCase() === stage.key).length;
+                      const pct = Math.round((count / total) * 100);
+                      const prevCount = idx === 0 ? total : savedLeadsCrm.filter((l) => {
+                        const s = (l.leadStatus || 'NEW').toUpperCase();
+                        return stages.slice(0, idx).some((st) => st.key === s);
+                      }).length || 1;
+                      const convRate = count > 0 ? Math.round((count / prevCount) * 100) : 0;
+                      return (
+                        <div key={stage.key} className="space-y-1">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-semibold text-slate-800 w-32">{stage.label}</span>
+                            <span className="font-mono text-slate-600">{count} prospek</span>
+                            <span className="font-mono text-slate-400 w-16 text-right">{pct}% dari total</span>
+                            <span className="font-mono text-emerald-600 w-20 text-right">{idx === 0 ? '—' : `${convRate}% konversi`}</span>
+                          </div>
+                          <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${stage.color} rounded-full transition-all duration-300`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+
+                {savedLeadsCrm.length > 0 && (
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-[11px] space-y-1">
+                    <p className="text-slate-700">
+                      <span className="font-bold text-slate-900">Conversion Rate Keseluruhan:</span>{' '}
+                      {(() => {
+                        const closed = savedLeadsCrm.filter((l) => (l.leadStatus || '').toUpperCase() === 'CLOSED').length;
+                        const contacted = savedLeadsCrm.filter((l) => {
+                          const s = (l.leadStatus || '').toUpperCase();
+                          return s === 'CONTACTED' || s === 'INTERESTED' || s === 'IN_PROGRESS' || s === 'CLOSED';
+                        }).length;
+                        return contacted > 0 ? `${Math.round((closed / contacted) * 100)}%` : '0%';
+                      })()}{' '}
+                      (CLOSED / CONTACTED)
+                    </p>
+                    <p className="text-slate-700">
+                      <span className="font-bold text-slate-900">Estimasi Revenue Pipeline:</span>{' '}
+                      {(() => {
+                        const interested = savedLeadsCrm.filter((l) => (l.leadStatus || '').toUpperCase() === 'INTERESTED').length;
+                        const inProgress = savedLeadsCrm.filter((l) => (l.leadStatus || '').toUpperCase() === 'IN_PROGRESS').length;
+                        const avgDeal = 2500000;
+                        const estRevenue = (interested + inProgress) * avgDeal;
+                        return `Rp ${estRevenue.toLocaleString('id-ID')} (${interested + inProgress} prospek x Rp 2.500.000 rata-rata deal)`;
+                      })()}
+                    </p>
+                    <p className="text-slate-500 italic">
+                      {(() => {
+                        const totalLeads = savedLeadsCrm.length;
+                        if (totalLeads === 0) return 'Belum ada data prospek.';
+                        const closed = savedLeadsCrm.filter((l) => (l.leadStatus || '').toUpperCase() === 'CLOSED').length;
+                        const contacted = savedLeadsCrm.filter((l) => {
+                          const s = (l.leadStatus || '').toUpperCase();
+                          return s === 'CONTACTED' || s === 'INTERESTED' || s === 'IN_PROGRESS' || s === 'CLOSED';
+                        }).length;
+                        const closeRate = closed / Math.max(1, totalLeads);
+                        const neededProspects = closeRate > 0 ? Math.ceil(1 / closeRate) - totalLeads : 7 - contacted;
+                        return `Estimasi butuh ${Math.max(0, neededProspects)} prospek lagi untuk dapat 1 klien berikutnya.`;
+                      })()}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Status Filter Tabs */}
