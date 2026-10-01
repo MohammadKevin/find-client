@@ -256,6 +256,55 @@ export default function LeadFinderApp() {
   // ---------- SEND LOG ----------
   const [sendLog, setSendLog] = useState<Array<{ phone: string; name: string; time: string; success: boolean; error?: string }>>([]);
 
+  // ---------- REVENUE TRACKER ----------
+  interface DealRecord {
+    id: string;
+    clientName: string;
+    amount: number;
+    date: string;
+    status: 'PAID' | 'PENDING' | 'DP';
+    notes?: string;
+  }
+
+  const [deals, setDeals] = useState<DealRecord[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('leads_deals');
+      return stored ? JSON.parse(stored) : [];
+    }
+    return [];
+  });
+
+  const weeklyRevenueTarget = 3000000;
+  const weeklyDealsTotal = useMemo(() => {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+    startOfWeek.setHours(0, 0, 0, 0);
+    return deals
+      .filter((d) => new Date(d.date) >= startOfWeek && (d.status === 'PAID' || d.status === 'DP'))
+      .reduce((sum, d) => sum + (d.status === 'DP' ? d.amount * 0.5 : d.amount), 0);
+  }, [deals]);
+
+  const dealsThisMonth = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return deals
+      .filter((d) => new Date(d.date) >= startOfMonth && (d.status === 'PAID' || d.status === 'DP'))
+      .reduce((sum, d) => sum + d.amount, 0);
+  }, [deals]);
+
+  // ---------- FOLLOW-UP REMINDER ----------
+  const followUpReminders = useMemo(() => {
+    const now = Date.now();
+    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+    return savedLeadsCrm.filter((l) => {
+      if ((l.leadStatus || '').toUpperCase() !== 'INTERESTED') return false;
+      const lastSync = l.lastSyncAt ? new Date(l.lastSyncAt).getTime() : 0;
+      if (!lastSync) return true;
+      return (now - lastSync) > threeDaysMs;
+    }).slice(0, 10);
+  }, [savedLeadsCrm]);
+
   const handlePinInput = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
     const newPin = [...pinInputs];
@@ -1052,7 +1101,7 @@ export default function LeadFinderApp() {
               )}
 
               {/* MANUAL REPLY COUNTER */}
-              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex items-center justify-between">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-4">
                   <div className="text-center">
                     <p className="text-xs font-semibold text-slate-500 uppercase">Reply</p>
@@ -1067,6 +1116,107 @@ export default function LeadFinderApp() {
                 </div>
                 <p className="text-[10px] text-slate-400">Klik +1 setiap dapat reply/meeting untuk tracking otomatis</p>
               </div>
+
+              {/* REVENUE TRACKER */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-2"><FontAwesomeIcon icon={faChartLine} className="h-3.5 w-3.5 text-emerald-600" /> Revenue Tracker — Target Rp3.000.000/minggu</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-center">
+                    <p className="text-[9px] font-bold text-emerald-600 uppercase">Minggu Ini</p>
+                    <p className="text-lg font-mono font-bold text-emerald-800">Rp {weeklyDealsTotal.toLocaleString('id-ID')}</p>
+                    <div className="w-full h-2 bg-emerald-200 rounded-full mt-1 overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, (weeklyDealsTotal / weeklyRevenueTarget) * 100)}%` }} />
+                    </div>
+                    <p className="text-[10px] text-emerald-600 mt-0.5">{Math.round((weeklyDealsTotal / weeklyRevenueTarget) * 100)}% dari target</p>
+                  </div>
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
+                    <p className="text-[9px] font-bold text-blue-600 uppercase">Bulan Ini</p>
+                    <p className="text-lg font-mono font-bold text-blue-800">Rp {dealsThisMonth.toLocaleString('id-ID')}</p>
+                    <p className="text-[10px] text-blue-600 mt-0.5">{deals.length} deal tercatat</p>
+                  </div>
+                  <div className="p-3 bg-purple-50 rounded-lg border border-purple-200 text-center">
+                    <p className="text-[9px] font-bold text-purple-600 uppercase">Sisa Target</p>
+                    <p className="text-lg font-mono font-bold text-purple-800">Rp {Math.max(0, weeklyRevenueTarget - weeklyDealsTotal).toLocaleString('id-ID')}</p>
+                    <p className="text-[10px] text-purple-600 mt-0.5">butuh {Math.ceil(Math.max(0, weeklyRevenueTarget - weeklyDealsTotal) / 1500000)} project @1.5jt</p>
+                  </div>
+                </div>
+
+                {/* Add Deal Form */}
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-slate-600 hover:text-slate-900 font-semibold">+ Catat Deal Baru</summary>
+                  <div className="mt-2 p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+                    <div className="grid grid-cols-4 gap-2">
+                      <input type="text" id="deal-name" placeholder="Nama client" className="col-span-2 text-xs py-1.5 px-2 rounded border border-slate-200 bg-white" />
+                      <input type="number" id="deal-amount" placeholder="Nominal (Rp)" className="text-xs py-1.5 px-2 rounded border border-slate-200 bg-white" />
+                      <select id="deal-status" className="text-xs py-1.5 px-2 rounded border border-slate-200 bg-white">
+                        <option value="PAID">Lunas</option>
+                        <option value="DP">DP</option>
+                        <option value="PENDING">Pending</option>
+                      </select>
+                    </div>
+                    <button onClick={() => {
+                      const nameInput = document.getElementById('deal-name') as HTMLInputElement;
+                      const amountInput = document.getElementById('deal-amount') as HTMLInputElement;
+                      const statusSelect = document.getElementById('deal-status') as HTMLSelectElement;
+                      const name = nameInput?.value?.trim();
+                      const amount = Number(amountInput?.value);
+                      if (!name || !amount) { showToast('error', 'Nama client & nominal wajib diisi.'); return; }
+                      const newDeal: DealRecord = { id: `deal-${Date.now()}`, clientName: name, amount, date: new Date().toISOString(), status: statusSelect?.value as 'PAID' | 'DP' | 'PENDING' };
+                      const updated = [...deals, newDeal];
+                      setDeals(updated);
+                      localStorage.setItem('leads_deals', JSON.stringify(updated));
+                      nameInput.value = ''; amountInput.value = '';
+                      showToast('success', `Deal ${name} — Rp ${amount.toLocaleString('id-ID')} tercatat!`);
+                    }} className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer">Simpan Deal</button>
+                  </div>
+                </details>
+
+                {/* Deal List */}
+                {deals.length > 0 && (
+                  <div className="mt-2 max-h-36 overflow-y-auto text-[10px]">
+                    {[...deals].reverse().slice(0, 10).map((d) => (
+                      <div key={d.id} className="flex items-center justify-between py-1 border-t border-slate-100">
+                        <span className="font-medium text-slate-800">{d.clientName}</span>
+                        <span className="font-mono text-slate-600">Rp {d.amount.toLocaleString('id-ID')}</span>
+                        <span className={`px-1.5 py-0.2 rounded font-semibold ${d.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : d.status === 'DP' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{d.status}</span>
+                        <span className="text-slate-400">{new Date(d.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* FOLLOW-UP REMINDER */}
+              {followUpReminders.length > 0 && (
+                <div className="bg-white border border-amber-200 rounded-xl p-5 shadow-xs">
+                  <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <FontAwesomeIcon icon={faClock} className="h-3.5 w-3.5 text-amber-600" />
+                    Follow-up Reminder — {followUpReminders.length} prospek INTERESTED belum di-follow-up {'>'}3 hari
+                  </h4>
+                  <div className="space-y-1.5">
+                    {followUpReminders.map((lead) => {
+                      const cleanP = lead.phoneAnalysis?.cleaned || normalizeWhatsAppNumber(lead.nationalPhoneNumber);
+                      const daysSince = lead.lastSyncAt ? Math.floor((Date.now() - new Date(lead.lastSyncAt).getTime()) / (24 * 60 * 60 * 1000)) : '?';
+                      return (
+                        <div key={lead.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-amber-50 border border-amber-200">
+                          <div className="flex-1">
+                            <span className="font-semibold text-slate-900">{lead.name}</span>
+                            <span className="text-slate-400 ml-2">{daysSince} hari</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => { const msg = 'Halo ' + lead.name.split(' ')[0] + ', saya Kevin — masih tertarik dengan penawaran saya sebelumnya? Saya bisa kirimkan preview demo langsung. Terima kasih!'; if (cleanP) { navigator.clipboard.writeText(msg); showToast('success', 'Pesan follow-up disalin!'); } else { showToast('error', 'Nomor WA tidak valid.'); } }} className="px-2 py-0.5 rounded bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold text-[10px] cursor-pointer">
+                              <FontAwesomeIcon icon={faCopy} className="h-2.5 w-2.5 mr-0.5" />Salin
+                            </button>
+                            <button onClick={async () => { if (!cleanP) return; const msg = 'Halo ' + lead.name.split(' ')[0] + ', saya Kevin — masih tertarik dengan penawaran saya sebelumnya? Saya bisa kirimkan preview demo langsung. Terima kasih!'; try { const res = await fetch('/api/send-wa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: cleanP, message: msg, token: fonnteToken || undefined }) }); if (res.ok) showToast('success', 'Follow-up terkirim!'); else showToast('error', 'Gagal kirim.'); } catch { showToast('error', 'Network error.'); } }} className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold text-[10px] cursor-pointer">
+                              <FontAwesomeIcon icon={faPaperPlane} className="h-2.5 w-2.5 mr-0.5" />Kirim
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
