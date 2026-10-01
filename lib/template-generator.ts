@@ -221,6 +221,35 @@ export function detectCategory(businessName: string, query?: string): OutreachCa
   return 'general';
 }
 
+/**
+ * Sanitasi nama bisnis dari Google Maps yang sering mengandung keyword panjang.
+ * Contoh: "Family Home Kos: Harian / Bulanan / Tahun" → "Family Home Kos"
+ */
+export function sanitizeBusinessName(rawName: string): string {
+  if (!rawName) return '';
+  let name = rawName.trim();
+
+  // Ambil bagian sebelum tanda titik dua (keyword separator umum di Maps)
+  const colonIdx = name.indexOf(':');
+  if (colonIdx > 0 && colonIdx < name.length - 1) {
+    name = name.substring(0, colonIdx).trim();
+  }
+
+  // Hapus isi dalam tanda kurung "(...)" atau "[...]"
+  name = name.replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').trim();
+
+  // Jika masih ada garis miring, ambil segmen pertama saja (contoh: "Kos / Homestay" → "Kos")
+  const slashParts = name.split('/').map((s) => s.trim()).filter(Boolean);
+  if (slashParts.length > 0) {
+    name = slashParts[0];
+  }
+
+  // Bersihkan strip (-) di awal/akhir dan spasi berlebih
+  name = name.replace(/^-+|-+$/g, '').replace(/\s{2,}/g, ' ').trim();
+
+  return name;
+}
+
 export interface GenerateTemplateParams {
   businessName: string;
   category?: OutreachCategory | string;
@@ -235,7 +264,7 @@ export function generateOutreachMessage({
   businessName,
   category = 'general',
 }: GenerateTemplateParams): string {
-  const name = businessName ? businessName.trim() : 'Bapak/Ibu';
+  const name = sanitizeBusinessName(businessName) || 'Bapak/Ibu';
 
   if (category === 'kos') {
     return `Halo Kak/Pak di ${name}, salam kenal! Saya perhatikan ulasan dan lokasi kosnya di Google Maps sudah sangat strategis.
