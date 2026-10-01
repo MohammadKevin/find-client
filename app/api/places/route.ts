@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cleanPhoneNumber, PhoneAnalysis } from '@/lib/phone-utils';
+import {
+  evaluateLeadQualification,
+  LeadQualificationResult,
+  LeadStatus,
+  PriorityScore,
+  RejectionReason,
+} from '@/lib/lead-qualification';
 
 interface SerpApiPlace {
   position?: number;
@@ -44,6 +51,11 @@ export interface PlaceLead {
   types: string[];
   primaryType: string;
   phoneAnalysis: PhoneAnalysis;
+  qualification: LeadQualificationResult;
+  priorityScore: PriorityScore;
+  leadStatus: LeadStatus;
+  rejectionReason: RejectionReason;
+  isIdealTarget: boolean;
 }
 
 async function searchWithSerper(query: string, apiKey: string, isGlobal: boolean): Promise<PlaceLead[] | null> {
@@ -76,6 +88,13 @@ async function searchWithSerper(query: string, apiKey: string, isGlobal: boolean
       const rating = typeof place.rating === 'number' ? place.rating : 0;
       const userRatingCount = typeof place.ratingCount === 'number' ? place.ratingCount : 0;
 
+      const qualification = evaluateLeadQualification({
+        name,
+        website: websiteUri,
+        rating,
+        reviewCount: userRatingCount,
+      });
+
       return {
         id,
         name,
@@ -89,6 +108,11 @@ async function searchWithSerper(query: string, apiKey: string, isGlobal: boolean
         types: place.category ? [place.category] : [],
         primaryType: place.category || 'business',
         phoneAnalysis,
+        qualification,
+        priorityScore: qualification.priorityScore,
+        leadStatus: qualification.status,
+        rejectionReason: qualification.rejectionReason,
+        isIdealTarget: qualification.isIdealTarget,
       };
     });
   } catch {
@@ -145,6 +169,13 @@ async function searchWithSerpApi(query: string, apiKey: string, isGlobal: boolea
         ? [place.type]
         : [];
 
+      const qualification = evaluateLeadQualification({
+        name,
+        website: websiteUri,
+        rating,
+        reviewCount: userRatingCount,
+      });
+
       return {
         id,
         name,
@@ -158,6 +189,11 @@ async function searchWithSerpApi(query: string, apiKey: string, isGlobal: boolea
         types,
         primaryType: place.type || (types.length > 0 ? types[0] : ''),
         phoneAnalysis,
+        qualification,
+        priorityScore: qualification.priorityScore,
+        leadStatus: qualification.status,
+        rejectionReason: qualification.rejectionReason,
+        isIdealTarget: qualification.isIdealTarget,
       };
     });
   } catch {
@@ -193,23 +229,41 @@ async function searchWithOpenStreetMap(query: string): Promise<PlaceLead[]> {
 
     return data.map((item: OsmPlace, index: number) => {
       const extra = item.extratags || {};
-      const rawPhone = extra.phone || extra['contact:phone'] || extra['contact:whatsapp'] || extra['contact:mobile'] || '';
+      const rawPhone =
+        extra.phone ||
+        extra['contact:phone'] ||
+        extra['contact:whatsapp'] ||
+        extra['contact:mobile'] ||
+        '';
       const phoneAnalysis = cleanPhoneNumber(rawPhone);
       const websiteUri = extra.website || extra['contact:website'] || null;
+      const name = item.name || item.display_name?.split(',')[0] || 'Tempat Usaha';
+
+      const qualification = evaluateLeadQualification({
+        name,
+        website: websiteUri,
+        rating: 4.5,
+        reviewCount: 15,
+      });
 
       return {
         id: `osm-${item.osm_id || index}-${Date.now()}`,
-        name: item.name || item.display_name?.split(',')[0] || 'Tempat Usaha',
+        name,
         formattedAddress: item.display_name || 'Alamat Lokasi',
         nationalPhoneNumber: rawPhone,
         internationalPhoneNumber: rawPhone,
         websiteUri,
         hasWebsite: Boolean(websiteUri),
         rating: 4.5,
-        userRatingCount: 10,
+        userRatingCount: 15,
         types: [item.type || item.class || 'business'],
         primaryType: item.type || item.class || 'business',
         phoneAnalysis,
+        qualification,
+        priorityScore: qualification.priorityScore,
+        leadStatus: qualification.status,
+        rejectionReason: qualification.rejectionReason,
+        isIdealTarget: qualification.isIdealTarget,
       };
     });
   } catch {
@@ -223,6 +277,7 @@ export async function POST(req: NextRequest) {
     const query = typeof body?.query === 'string' ? body.query.trim() : '';
     const customApiKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
     const marketMode = body?.marketMode === 'global' ? 'global' : 'indo';
+    const excludeFranchise = body?.excludeFranchise !== false;
 
     if (!query) {
       return NextResponse.json(
@@ -259,18 +314,28 @@ export async function POST(req: NextRequest) {
     }
 
     if (!places || places.length === 0) {
-      return NextResponse.json({
-        error: 'Kuota SerpApi akun Anda telah habis. Anda bisa menggunakan Serper.dev (Gratis 2.500 pencarian) dengan memasukkan SERPER_API_KEY di .env.local.',
-        places: [],
-      }, { status: 429 });
+      return NextResponse.json(
+        {
+          error:
+            'Kuota SerpApi akun Anda telah habis. Anda bisa menggunakan Serper.dev (Gratis 2.500 pencarian) dengan memasukkan SERPER_API_KEY di .env.local.',
+          places: [],
+        },
+        { status: 429 }
+      );
     }
+
+    const finalPlaces = excludeFranchise
+      ? places.filter((p) => p.leadStatus !== 'UNQUALIFIED_FRANCHISE')
+      : places;
 
     return NextResponse.json({
       query,
       marketMode: isGlobal ? 'global' : 'indo',
       provider: usedProvider,
-      total: places.length,
-      places,
+      total: finalPlaces.length,
+      unfilteredTotal: places.length,
+      excludedFranchiseCount: places.length - finalPlaces.length,
+      places: finalPlaces,
     });
   } catch (error: unknown) {
     const errorMsg =

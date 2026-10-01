@@ -1,32 +1,82 @@
 /**
  * ============================================================
- * LEADS WHATSAPP TRACKER & PIPELINE CRM — Google Apps Script
+ * LEADS MACHINE CRM — Google Apps Script (v2.1)
  * ============================================================
+ * 
+ * STRUKTUR 11 KOLOM CRM:
+ * 1.  Nama Bisnis (business_name)
+ * 2.  Kategori (category)
+ * 3.  No Telepon (phone_number)
+ * 4.  Link Google Maps (maps_url)
+ * 5.  Rating (rating)
+ * 6.  Jumlah Ulasan (review_count)
+ * 7.  Website Asli (website)
+ * 8.  Status Lead (lead_status)        [NEW, QUALIFIED, CONTACTED, INTERESTED, LOST_FRANCHISE, CLOSED, UNQUALIFIED_FRANCHISE, UNQUALIFIED_CORPORATE]
+ * 9.  Alasan Penolakan (rejection_reason) [Franchise, No Budget, Already Has Vendor, No Response, Corporate]
+ * 10. Draft Pitch WA (generated_pitch)
+ * 11. Terakhir Disinkron (last_sync_at)
  *
- * FITUR UTAMA:
- * 1. Dropdown otomatis pada kolom Status_Chat:
- *    [Sudah Di-Chat, Belum Di-Chat, Perlu Follow-up, Deal / Selesai, Ditolak]
- * 2. Header rapi & format nomor otomatis.
- * 3. doGet: Mengambil seluruh data leads untuk sinkronisasi Pipeline CRM.
- * 4. doPost: Update status & timestamp saat tombol "Chat WA" diklik.
- * 5. seedInitialChatted: Menandai 33 nomor riwayat awal.
- * 6. formatAndSetupSheet: Merapikan & membuat dropdown 1-klik.
- *
- * CARA PAKAI:
- * 1. Buka Google Sheets > Extensions > Apps Script.
- * 2. Tempel seluruh kode ini ke Code.gs.
- * 3. Jalankan fungsi "formatAndSetupSheet" sekali dari dropdown atas (klik Run).
- * 4. Klik Deploy > Manage deployments > Edit > Version: New version > Anyone > Deploy.
+ * CARA SETUP SPREADSHEET BARU:
+ * 1. Buka Google Spreadsheet baru (kosong).
+ * 2. Klik Extensions > Apps Script.
+ * 3. Hapus kode bawaan, lalu tempel seluruh isi skrip ini ke Code.gs.
+ * 4. Pada dropdown fungsi di bagian atas, pilih "initNewLeadsCrmSheet" lalu klik Run.
+ * 5. Klik Deploy > New deployment:
+ *    - Select type: Web app
+ *    - Description: Leads CRM API v2
+ *    - Execute as: Me
+ *    - Who has access: Anyone
+ * 6. Salin URL Web App yang dihasilkan ke file .env.local:
+ *    GOOGLE_SHEETS_WEBAPP_URL=https://script.google.com/macros/s/.../exec
  * ============================================================
  */
 
-var STATUS_OPTIONS = [
-  'Sudah Di-Chat',
-  'Belum Di-Chat',
-  'Perlu Follow-up',
-  'Deal / Selesai',
-  'Ditolak'
+var SHEET_NAME = 'Leads CRM';
+
+var HEADERS = [
+  'Nama Bisnis',
+  'Kategori',
+  'No Telepon',
+  'Link Google Maps',
+  'Rating',
+  'Jumlah Ulasan',
+  'Website Asli',
+  'Status Lead',
+  'Alasan Penolakan',
+  'Draft Pitch WA',
+  'Terakhir Disinkron'
 ];
+
+var STATUS_OPTIONS = [
+  'NEW',
+  'QUALIFIED',
+  'CONTACTED',
+  'INTERESTED',
+  'IN_PROGRESS',
+  'LOST_FRANCHISE',
+  'LOST_REJECTED',
+  'CLOSED',
+  'UNQUALIFIED_FRANCHISE',
+  'UNQUALIFIED_CORPORATE'
+];
+
+var REJECTION_OPTIONS = [
+  'Franchise',
+  'No Budget',
+  'Already Has Vendor',
+  'No Response',
+  'Corporate',
+  'Belum butuh penawaran'
+];
+
+function getOrCreateLeadsSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME, 0);
+  }
+  return sheet;
+}
 
 function normalizePhone_(raw) {
   if (!raw) return '';
@@ -38,109 +88,34 @@ function normalizePhone_(raw) {
   return digits;
 }
 
-function applyStatusDropdown_(sheet, statusColIndex, startRow, numRows) {
-  if (!statusColIndex || statusColIndex < 1 || !numRows || numRows < 1) return;
+function applyDropdownValidation_(sheet, colIndex, options, startRow, numRows) {
+  if (!colIndex || colIndex < 1 || !numRows || numRows < 1) return;
   try {
     var rule = SpreadsheetApp.newDataValidation()
-      .requireValueInList(STATUS_OPTIONS, true)
+      .requireValueInList(options, true)
       .setAllowInvalid(true)
       .build();
-    sheet.getRange(startRow, statusColIndex, numRows, 1).setDataValidation(rule);
+    sheet.getRange(startRow, colIndex, numRows, 1).setDataValidation(rule);
   } catch (err) {}
 }
 
-function ensureColumns_() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+function initNewLeadsCrmSheet() {
+  var sheet = getOrCreateLeadsSheet_();
   var lastCol = sheet.getLastColumn();
-  var headers = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
-
-  var statusCol = -1;
-  var chattedCol = -1;
-
-  for (var i = 0; i < headers.length; i++) {
-    var h = headers[i].toString().trim().toLowerCase();
-    if (h === 'status_chat' || h === 'status') statusCol = i + 1;
-    if (h === 'chatted_at' || h === 'waktu_kontak' || h === 'tanggal_chat') chattedCol = i + 1;
-  }
-
-  var nextCol = lastCol + 1;
-
-  if (statusCol === -1) {
-    statusCol = nextCol;
-    sheet.getRange(1, statusCol).setValue('Status_Chat');
-    nextCol++;
-  }
-  if (chattedCol === -1) {
-    chattedCol = nextCol;
-    sheet.getRange(1, chattedCol).setValue('Chatted_At');
-  }
-
   var lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    applyStatusDropdown_(sheet, statusCol, 2, Math.max(lastRow - 1, 50));
+
+  if (lastCol === 0 || lastRow === 0) {
+    sheet.appendRow(HEADERS);
+  } else {
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
   }
-
-  return { statusCol: statusCol, chattedCol: chattedCol };
-}
-
-function findPhoneColumn_() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var lastCol = sheet.getLastColumn();
-  if (lastCol === 0) return 1;
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-
-  var candidates = [
-    'nomor_wa', 'nomor wa', 'phone', 'telepon', 'no_hp', 'no hp',
-    'whatsapp', 'no_telp', 'nomor_standar', 'nomor', 'hp', 'no telp',
-    'nationalphonenumber', 'internationalphonenumber'
-  ];
-
-  for (var i = 0; i < headers.length; i++) {
-    var h = headers[i].toString().trim().toLowerCase();
-    for (var j = 0; j < candidates.length; j++) {
-      if (h === candidates[j]) return i + 1;
-    }
-  }
-
-  for (var k = 0; k < headers.length; k++) {
-    var h2 = headers[k].toString().trim().toLowerCase();
-    if (h2.indexOf('phone') !== -1 || h2.indexOf('nomor') !== -1 || h2.indexOf('hp') !== -1 || h2.indexOf('wa') !== -1) {
-      return k + 1;
-    }
-  }
-
-  return 2;
-}
-
-function formatAndSetupSheet() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-
-  if (lastRow === 0 || lastCol === 0) {
-    sheet.appendRow([
-      'Nama_Bisnis',
-      'Nomor_WA',
-      'Nomor_Standar',
-      'Status_Chat',
-      'Chatted_At',
-      'Alamat',
-      'Kategori',
-      'Catatan'
-    ]);
-    lastRow = 1;
-    lastCol = 8;
-  }
-
-  var cols = ensureColumns_();
-  var statusCol = cols.statusCol;
 
   try {
     sheet.setFrozenRows(1);
-    var headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+    var headerRange = sheet.getRange(1, 1, 1, HEADERS.length);
     headerRange
-      .setBackground('#0f172a')
-      .setFontColor('#ffffff')
+      .setBackground('#F3F4F6')
+      .setFontColor('#111827')
       .setFontWeight('bold')
       .setFontFamily('Arial')
       .setFontSize(10)
@@ -149,16 +124,26 @@ function formatAndSetupSheet() {
     sheet.setRowHeight(1, 38);
   } catch (err) {}
 
-  var totalRows = Math.max(sheet.getLastRow() - 1, 50);
-  applyStatusDropdown_(sheet, statusCol, 2, totalRows);
+  var totalRows = Math.max(sheet.getLastRow() - 1, 100);
+  applyDropdownValidation_(sheet, 8, STATUS_OPTIONS, 2, totalRows);
+  applyDropdownValidation_(sheet, 9, REJECTION_OPTIONS, 2, totalRows);
 
   try {
-    for (var c = 1; c <= sheet.getLastColumn(); c++) {
+    for (var c = 1; c <= HEADERS.length; c++) {
       sheet.autoResizeColumn(c);
     }
   } catch (err) {}
 
-  SpreadsheetApp.getUi().alert('Format & Dropdown Status_Chat Berhasil Diterapkan!');
+  SpreadsheetApp.getUi().alert('Inisialisasi Tab "' + SHEET_NAME + '" Berhasil Diterapkan!');
+}
+
+function getHeaderMap_(headers) {
+  var map = {};
+  for (var i = 0; i < headers.length; i++) {
+    var h = headers[i].toString().trim().toLowerCase().replace(/[\s_-]/g, '');
+    map[h] = i;
+  }
+  return map;
 }
 
 function doGet(e) {
@@ -168,280 +153,232 @@ function doGet(e) {
   } catch (lockErr) {
     return ContentService.createTextOutput(JSON.stringify({
       status: 'error',
-      message: 'Server busy, coba lagi.'
+      message: 'Server sedang sibuk. Silakan coba sesaat lagi.'
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
   try {
-    var cols = ensureColumns_();
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var sheet = getOrCreateLeadsSheet_();
     var lastRow = sheet.getLastRow();
     var lastCol = sheet.getLastColumn();
-    var phoneCol = findPhoneColumn_();
-    var chatted = [];
-    var data = [];
+    var leads = [];
+    var contactedNumbers = [];
 
-    if (lastRow > 1) {
+    if (lastRow > 1 && lastCol > 0) {
       var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
       var rows = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+      var hMap = getHeaderMap_(headers);
 
       for (var i = 0; i < rows.length; i++) {
         var row = rows[i];
-        var rawPhone = row[phoneCol - 1] ? row[phoneCol - 1].toString().trim() : '';
-        var norm = normalizePhone_(rawPhone);
-        var statusRaw = row[cols.statusCol - 1] ? row[cols.statusCol - 1].toString().trim() : '';
-        var chattedAtVal = row[cols.chattedCol - 1] ? row[cols.chattedCol - 1].toString().trim() : '';
 
-        var leadName = 'Prospek';
-        var leadAddress = '';
-        var leadCategory = 'general';
-        var leadNotes = '';
+        var name = (hMap['namabisnis'] !== undefined ? row[hMap['namabisnis']] : (hMap['businessname'] !== undefined ? row[hMap['businessname']] : row[0])) || '';
+        var category = (hMap['kategori'] !== undefined ? row[hMap['kategori']] : (hMap['category'] !== undefined ? row[hMap['category']] : row[1])) || 'general';
+        var phone = (hMap['notelepon'] !== undefined ? row[hMap['notelepon']] : (hMap['phonenumber'] !== undefined ? row[hMap['phonenumber']] : (hMap['nomorwa'] !== undefined ? row[hMap['nomorwa']] : row[2]))) || '';
+        var normPhone = normalizePhone_(phone);
+        var mapsUrl = (hMap['linkgooglemaps'] !== undefined ? row[hMap['linkgooglemaps']] : (hMap['mapsurl'] !== undefined ? row[hMap['mapsurl']] : row[3])) || '';
+        var rating = Number(hMap['rating'] !== undefined ? row[hMap['rating']] : row[4]) || 0;
+        var reviewCount = Number(hMap['jumlahulasan'] !== undefined ? row[hMap['jumlahulasan']] : (hMap['reviewcount'] !== undefined ? row[hMap['reviewcount']] : row[5])) || 0;
+        var website = (hMap['websiteasli'] !== undefined ? row[hMap['websiteasli']] : (hMap['website'] !== undefined ? row[hMap['website']] : row[6])) || '';
+        var status = (hMap['statuslead'] !== undefined ? row[hMap['statuslead']] : (hMap['leadstatus'] !== undefined ? row[hMap['leadstatus']] : row[7])) || 'NEW';
+        var rejection = (hMap['alasanpenolakan'] !== undefined ? row[hMap['alasanpenolakan']] : (hMap['rejectionreason'] !== undefined ? row[hMap['rejectionreason']] : row[8])) || '';
+        var pitch = (hMap['draftpitchwa'] !== undefined ? row[hMap['draftpitchwa']] : (hMap['generatedpitch'] !== undefined ? row[hMap['generatedpitch']] : row[9])) || '';
+        var lastSync = (hMap['terakhirdisinkron'] !== undefined ? row[hMap['terakhirdisinkron']] : (hMap['lastsyncat'] !== undefined ? row[hMap['lastsyncat']] : row[10])) || '';
 
-        for (var h = 0; h < headers.length; h++) {
-          var hName = headers[h].toString().trim().toLowerCase();
-          if (hName.indexOf('nama') !== -1 || hName.indexOf('name') !== -1 || hName.indexOf('title') !== -1 || hName.indexOf('bisnis') !== -1) {
-            if (row[h]) leadName = row[h].toString().trim();
-          } else if (hName.indexOf('alamat') !== -1 || hName.indexOf('address') !== -1 || hName.indexOf('lokasi') !== -1) {
-            if (row[h]) leadAddress = row[h].toString().trim();
-          } else if (hName.indexOf('kategori') !== -1 || hName.indexOf('category') !== -1) {
-            if (row[h]) leadCategory = row[h].toString().trim();
-          } else if (hName.indexOf('catatan') !== -1 || hName.indexOf('notes') !== -1 || hName.indexOf('keterangan') !== -1) {
-            if (row[h]) leadNotes = row[h].toString().trim();
-          }
-        }
-
-        if (norm) {
-          var stLow = statusRaw.toLowerCase();
-          var resolvedStatus = 'new';
-          var isChatted = false;
-
-          if (stLow === 'sudah' || stLow === 'sudah di-chat' || stLow === 'contacted' || stLow === 'sudah dichat') {
-            resolvedStatus = 'contacted';
-            isChatted = true;
-          } else if (stLow === 'follow-up' || stLow === 'perlu follow-up' || stLow === 'followup') {
-            resolvedStatus = 'followup';
-            isChatted = true;
-          } else if (stLow === 'deal' || stLow === 'deal / selesai' || stLow === 'closed' || stLow === 'selesai') {
-            resolvedStatus = 'closed';
-            isChatted = true;
-          } else if (stLow === 'ditolak' || stLow === 'rejected' || stLow === 'tolak') {
-            resolvedStatus = 'rejected';
-          } else {
-            resolvedStatus = 'new';
+        if (normPhone) {
+          if (status === 'CONTACTED' || status === 'INTERESTED' || status === 'CLOSED' || status === 'Sudah Di-Chat') {
+            contactedNumbers.push(normPhone);
           }
 
-          data.push({
-            phone: rawPhone || norm,
-            normalizedPhone: norm,
-            name: leadName || ('Prospek ' + (i + 1)),
-            address: leadAddress,
-            category: leadCategory,
-            notes: leadNotes,
-            status: resolvedStatus,
-            statusDisplay: statusRaw || 'Belum Di-Chat',
-            contactedAt: chattedAtVal
+          leads.push({
+            business_name: name.toString().trim(),
+            category: category.toString().trim(),
+            phone_number: phone.toString().trim(),
+            normalized_phone: normPhone,
+            maps_url: mapsUrl.toString().trim(),
+            rating: rating,
+            review_count: reviewCount,
+            website: website.toString().trim() || null,
+            lead_status: status.toString().trim(),
+            rejection_reason: rejection.toString().trim() || null,
+            generated_pitch: pitch.toString().trim(),
+            last_sync_at: lastSync.toString().trim(),
           });
-
-          if (isChatted) {
-            chatted.push(norm);
-          }
         }
       }
     }
 
-    lock.releaseLock();
     return ContentService.createTextOutput(JSON.stringify({
       status: 'success',
-      total: data.length,
-      data: data,
-      chatted: chatted
+      total: leads.length,
+      contacted: contactedNumbers,
+      data: leads
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
-    lock.releaseLock();
     return ContentService.createTextOutput(JSON.stringify({
       status: 'error',
       message: err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    try { lock.releaseLock(); } catch(e) {}
   }
 }
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
-    lock.waitLock(10000);
+    lock.waitLock(15000);
   } catch (lockErr) {
     return ContentService.createTextOutput(JSON.stringify({
       status: 'error',
-      message: 'Server busy, coba lagi.'
+      message: 'Server sedang sibuk memproses sinkronisasi lain.'
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
   try {
-    var body = JSON.parse(e.postData ? e.postData.contents : '{}');
-    var rawPhone = body.phone || '';
-    var targetNorm = normalizePhone_(rawPhone || body.normalizedPhone);
-    var name = body.name || '';
-    var address = body.address || '';
-    var category = body.category || '';
-    var statusInput = body.status || 'Sudah Di-Chat';
-    var contactedAt = body.contactedAt || new Date().toISOString();
+    var sheet = getOrCreateLeadsSheet_();
+    var contents = e.postData ? e.postData.contents : '{}';
+    var payload = JSON.parse(contents);
 
-    var statusToSave = 'Sudah Di-Chat';
-    if (statusInput === 'new' || statusInput === 'Belum Di-Chat' || statusInput === 'Belum') {
-      statusToSave = 'Belum Di-Chat';
-    } else if (statusInput === 'followup' || statusInput === 'Perlu Follow-up') {
-      statusToSave = 'Perlu Follow-up';
-    } else if (statusInput === 'closed' || statusInput === 'Deal / Selesai' || statusInput === 'Deal') {
-      statusToSave = 'Deal / Selesai';
-    } else if (statusInput === 'rejected' || statusInput === 'Ditolak') {
-      statusToSave = 'Ditolak';
-    } else {
-      statusToSave = 'Sudah Di-Chat';
-    }
+    if (payload.action === 'bulk_resync' && Array.isArray(payload.leads)) {
+      sheet.clearContents();
+      sheet.appendRow(HEADERS);
 
-    if (!targetNorm) {
-      lock.releaseLock();
+      var rowsToInsert = [];
+      for (var b = 0; b < payload.leads.length; b++) {
+        var l = payload.leads[b];
+        rowsToInsert.push([
+          l.business_name || '',
+          l.category || 'general',
+          "'" + (l.phone_number || l.normalized_phone || ''),
+          l.maps_url || '',
+          l.rating || 0,
+          l.review_count || 0,
+          l.website || '',
+          l.lead_status || 'QUALIFIED',
+          l.rejection_reason || '',
+          l.generated_pitch || '',
+          l.last_sync_at || new Date().toISOString()
+        ]);
+      }
+
+      if (rowsToInsert.length > 0) {
+        sheet.getRange(2, 1, rowsToInsert.length, HEADERS.length).setValues(rowsToInsert);
+      }
+
+      try {
+        sheet.setFrozenRows(1);
+        var headerRange = sheet.getRange(1, 1, 1, HEADERS.length);
+        headerRange
+          .setBackground('#F3F4F6')
+          .setFontColor('#111827')
+          .setFontWeight('bold')
+          .setFontFamily('Arial')
+          .setFontSize(10)
+          .setHorizontalAlignment('center')
+          .setVerticalAlignment('middle');
+        sheet.setRowHeight(1, 38);
+      } catch (err) {}
+
+      var totalRows = Math.max(rowsToInsert.length, 50);
+      applyDropdownValidation_(sheet, 8, STATUS_OPTIONS, 2, totalRows);
+      applyDropdownValidation_(sheet, 9, REJECTION_OPTIONS, 2, totalRows);
+
+      try {
+        for (var col = 1; col <= HEADERS.length; col++) {
+          sheet.autoResizeColumn(col);
+        }
+      } catch (err) {}
+
       return ContentService.createTextOutput(JSON.stringify({
-        status: 'error',
-        message: 'Nomor telepon tidak valid.'
+        status: 'success',
+        message: 'Bulk resync berhasil diperbarui ke tab ' + SHEET_NAME,
+        inserted: rowsToInsert.length
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    var cols = ensureColumns_();
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var phone = payload.phone_number || payload.phone || '';
+    var normalizedPhone = payload.normalized_phone || payload.normalizedPhone || normalizePhone_(phone);
+    var name = payload.business_name || payload.name || 'Prospek';
+    var category = payload.category || 'general';
+    var mapsUrl = payload.maps_url || payload.address || '';
+    var rating = Number(payload.rating || 0);
+    var reviewCount = Number(payload.review_count || 0);
+    var website = payload.website || '';
+    var status = payload.lead_status || payload.status || 'QUALIFIED';
+    var rejectionReason = payload.rejection_reason || payload.rejectionReason || '';
+    var pitch = payload.generated_pitch || payload.pitch || '';
+    var syncAt = payload.last_sync_at || payload.contactedAt || new Date().toISOString();
+
     var lastRow = sheet.getLastRow();
     var lastCol = sheet.getLastColumn();
-    var phoneCol = findPhoneColumn_();
-    var found = false;
+
+    if (lastRow === 0 || lastCol === 0) {
+      initNewLeadsCrmSheet();
+      lastRow = sheet.getLastRow();
+      lastCol = sheet.getLastColumn();
+    }
+
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    var hMap = getHeaderMap_(headers);
+    var foundRow = -1;
+
+    var phoneColIdx = (hMap['notelepon'] !== undefined ? hMap['notelepon'] : (hMap['phonenumber'] !== undefined ? hMap['phonenumber'] : 2)) + 1;
 
     if (lastRow > 1) {
-      var phoneValues = sheet.getRange(2, phoneCol, lastRow - 1, 1).getValues();
-      for (var i = 0; i < phoneValues.length; i++) {
-        var norm = normalizePhone_(phoneValues[i][0]);
-        if (norm === targetNorm) {
-          var row = i + 2;
-          sheet.getRange(row, cols.statusCol).setValue(statusToSave);
-          sheet.getRange(row, cols.chattedCol).setValue(contactedAt);
-
-          if (name && name !== 'Prospek') {
-            var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-            for (var h = 0; h < headers.length; h++) {
-              var hName = headers[h].toString().trim().toLowerCase();
-              if (hName.indexOf('nama') !== -1 || hName.indexOf('name') !== -1) {
-                var currentVal = sheet.getRange(row, h + 1).getValue();
-                if (!currentVal || currentVal.toString().indexOf('Prospek') !== -1) {
-                  sheet.getRange(row, h + 1).setValue(name);
-                }
-                break;
-              }
-            }
-          }
-          found = true;
+      var phoneValues = sheet.getRange(2, phoneColIdx, lastRow - 1, 1).getValues();
+      for (var r = 0; r < phoneValues.length; r++) {
+        var existingNorm = normalizePhone_(phoneValues[r][0]);
+        if (existingNorm && existingNorm === normalizedPhone) {
+          foundRow = r + 2;
           break;
         }
       }
     }
 
-    if (!found) {
-      if (lastRow === 0) {
-        sheet.appendRow([
-          'Nama_Bisnis',
-          'Nomor_WA',
-          'Nomor_Standar',
-          'Status_Chat',
-          'Chatted_At',
-          'Alamat',
-          'Kategori',
-          'Catatan'
-        ]);
-        lastRow = 1;
-      }
-      sheet.appendRow([
-        name || 'Prospek',
-        "'" + (rawPhone || targetNorm),
-        "'" + targetNorm,
-        statusToSave,
-        contactedAt,
-        address || '',
-        category || 'general',
-        ''
-      ]);
-      applyStatusDropdown_(sheet, cols.statusCol, sheet.getLastRow(), 1);
-      found = true;
+    var rowData = [
+      name,
+      category,
+      "'" + (phone || normalizedPhone),
+      mapsUrl,
+      rating,
+      reviewCount,
+      website,
+      status,
+      rejectionReason,
+      pitch,
+      syncAt
+  'LOST_REJECTED',
+  'IN_PROGRESS'
+];
+
+    if (foundRow > 0) {
+      sheet.getRange(foundRow, 1, 1, HEADERS.length).setValues([rowData]);
+    } else {
+      sheet.appendRow(rowData);
     }
 
-    lock.releaseLock();
+    var totalRows = Math.max(sheet.getLastRow() - 1, 50);
+    applyDropdownValidation_(sheet, 8, STATUS_OPTIONS, 2, totalRows);
+    applyDropdownValidation_(sheet, 9, REJECTION_OPTIONS, 2, totalRows);
+
     return ContentService.createTextOutput(JSON.stringify({
       status: 'success',
-      found: found,
-      phone: targetNorm,
-      statusSaved: statusToSave
+      message: 'Data lead berhasil disinkronkan ke ' + SHEET_NAME,
+      data: {
+        business_name: name,
+        normalized_phone: normalizedPhone,
+        lead_status: status
+      }
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
-    lock.releaseLock();
     return ContentService.createTextOutput(JSON.stringify({
       status: 'error',
       message: err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function seedInitialChatted() {
-  var SEED_NUMBERS = [
-    '085119302628', '081259528818', '085100031911', '085161262561',
-    '085722552212', '08112109991',  '081321307311', '085891385526',
-    '085878026341', '085965982678', '08992280007',  '085875109098',
-    '081215951695', '0895384195060','08157938155',  '0895327003456',
-    '081130006789', '081255277785', '082244681797', '085204226322',
-    '085755852344', '085784582261', '081944970885', '089516564400',
-    '087859104286', '08155555323',  '081222111388', '0881036697022',
-    '08990367165',  '08981309325',  '082131008657', '081334455891',
-    '08980080309'
-  ];
-
-  var seedSet = {};
-  for (var s = 0; s < SEED_NUMBERS.length; s++) {
-    var n = normalizePhone_(SEED_NUMBERS[s]);
-    if (n) seedSet[n] = true;
-  }
-
-  var lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-
-  try {
-    var cols = ensureColumns_();
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    var lastRow = sheet.getLastRow();
-    var phoneCol = findPhoneColumn_();
-    var matched = 0;
-
-    if (lastRow > 1) {
-      var phoneValues = sheet.getRange(2, phoneCol, lastRow - 1, 1).getValues();
-
-      for (var i = 0; i < phoneValues.length; i++) {
-        var norm = normalizePhone_(phoneValues[i][0]);
-        if (norm && seedSet[norm]) {
-          var row = i + 2;
-          sheet.getRange(row, cols.statusCol).setValue('Sudah Di-Chat');
-          sheet.getRange(row, cols.chattedCol).setValue(new Date().toISOString());
-          matched++;
-        }
-      }
-    }
-
-    applyStatusDropdown_(sheet, cols.statusCol, 2, Math.max(lastRow, 50));
-    lock.releaseLock();
-
-    SpreadsheetApp.getUi().alert(
-      'Seed Selesai!\n\n' +
-      'Total nomor terdaftar di riwayat: ' + SEED_NUMBERS.length + '\n' +
-      'Baris yang berhasil ditandai "Sudah Di-Chat": ' + matched
-    );
-
-  } catch (err) {
-    lock.releaseLock();
-    SpreadsheetApp.getUi().alert('Error saat seeding: ' + err.toString());
+  } finally {
+    try { lock.releaseLock(); } catch(e) {}
   }
 }

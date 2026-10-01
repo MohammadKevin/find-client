@@ -16,46 +16,46 @@ export interface CategoryOption {
 
 export const OUTREACH_CATEGORIES: CategoryOption[] = [
   {
+    id: 'umkm',
+    label: 'UMKM, Kuliner & Retail (Katalog & Stand QR)',
+    badge: 'Katalog & Stand QR Kasir',
+    description: 'Katalog visual cepat, order direct-to-WA, plus stand akrilik QR review kasir untuk mendongkrak bintang 5.',
+  },
+  {
     id: 'kos',
     label: 'Kos-Kosan & Homestay (Booking & Kamar)',
     badge: 'Katalog Kamar & KTP',
-    description: 'Fokus pada katalog kamar live, form booking online dengan upload KTP aman, dan auto-reminder tagihan WA.',
-  },
-  {
-    id: 'umkm',
-    label: 'UMKM & Kuliner (Konveksi, Florist, Katering, Toko)',
-    badge: 'Katalog & Order WA',
-    description: 'Fokus pada katalog visual, daftar harga, dan alur order praktis tanpa chat manual panjang.',
+    description: 'Katalog ketersediaan live, verifikasi KTP penyewa aman, dan auto-reminder jatuh tempo WA.',
   },
   {
     id: 'jasa',
-    label: 'Instansi, Bimbel & Klinik (Profil & Jadwal)',
-    badge: 'Profil & Kredibilitas',
-    description: 'Fokus pada landing page profil resmi, jam layanan/jadwal dokter, kredibilitas Google, dan tombol kontak langsung.',
+    label: 'Klinik, Bimbel & Jasa Servis (Reservasi & Profil)',
+    badge: 'Reservasi & Stand QR',
+    description: 'Jadwal layanan instan tanpa chat manual panjang plus stand akrilik QR Google Maps di meja resepsionis.',
   },
   {
     id: 'wedding',
-    label: 'Wedding, Event & Fotografi (Portofolio & Paket)',
-    badge: 'Galeri & Booking Tanggal',
-    description: 'Fokus showcase galeri foto/video megah, rincian paket pricelist, dan booking jadwal acara.',
+    label: 'Wedding, Event & Fotografi (Galeri & Jadwal)',
+    badge: 'Galeri HD & Booking',
+    description: 'Showcase portofolio visual estetik, rincian paket pricelist, dan booking tanggal acara.',
   },
   {
     id: 'properti',
     label: 'Kontraktor, Arsitek & Desain Interior',
-    badge: 'Showcase Proyek & RAB',
-    description: 'Fokus portofolio hasil bangun/renovasi, testimoni klien, dan formulir konsultasi estimasi anggaran.',
+    badge: 'Portofolio & Estimasi RAB',
+    description: 'Showcase proyek hasil bangun/renovasi, testimoni, dan konsultasi estimasi anggaran proyek.',
   },
   {
     id: 'rental',
     label: 'Rental Mobil, Motor & Sewa Alat',
     badge: 'Katalog Armada & Jadwal',
-    description: 'Fokus katalog unit armada/barang sewa, cek tanggal ketersediaan, dan syarat booking cepat.',
+    description: 'Katalog ketersediaan unit armada, syarat sewa cepat, dan booking langsung ke admin WA.',
   },
   {
     id: 'general',
-    label: 'Umum / Standar',
-    badge: 'Penawaran Website',
-    description: 'Pendekatan umum pembuatan website modern dan profesional untuk meningkatkan branding bisnis.',
+    label: 'Bisnis Independen Lokal (Value-First)',
+    badge: 'Otomasi Alur & Stand QR',
+    description: 'Audit ringan, optimasi alur order/reservasi pelanggan, dan stand akrilik QR review kasir.',
   },
 ];
 
@@ -108,7 +108,6 @@ const PROPERTI_KEYWORDS = [
   'aluminium',
   'kusen',
   'tukang',
-  'kusen',
   'plafon',
   'kitchen set',
 ];
@@ -155,6 +154,13 @@ const UMKM_KEYWORDS = [
   'hijab',
   'sepatu',
   'tas',
+  'cafe',
+  'kafe',
+  'warung',
+  'resto',
+  'restoran',
+  'kedai',
+  'depot',
 ];
 
 const JASA_KEYWORDS = [
@@ -186,6 +192,8 @@ const JASA_KEYWORDS = [
   'gym',
   'fitness',
   'studio',
+  'fisioterapi',
+  'terapi',
 ];
 
 export function detectCategory(businessName: string, query?: string): OutreachCategory {
@@ -194,23 +202,18 @@ export function detectCategory(businessName: string, query?: string): OutreachCa
   for (const kw of KOS_KEYWORDS) {
     if (combined.includes(kw)) return 'kos';
   }
-
   for (const kw of WEDDING_KEYWORDS) {
     if (combined.includes(kw)) return 'wedding';
   }
-
   for (const kw of PROPERTI_KEYWORDS) {
     if (combined.includes(kw)) return 'properti';
   }
-
   for (const kw of RENTAL_KEYWORDS) {
     if (combined.includes(kw)) return 'rental';
   }
-
   for (const kw of UMKM_KEYWORDS) {
     if (combined.includes(kw)) return 'umkm';
   }
-
   for (const kw of JASA_KEYWORDS) {
     if (combined.includes(kw)) return 'jasa';
   }
@@ -223,110 +226,70 @@ export interface GenerateTemplateParams {
   category?: OutreachCategory | string;
   senderName?: string;
   senderRole?: string;
+  rating?: number;
+  userRatingCount?: number;
+  address?: string;
 }
 
 export function generateOutreachMessage({
   businessName,
   category = 'general',
-  senderName = '',
-  senderRole = 'freelance web developer',
 }: GenerateTemplateParams): string {
   const name = businessName ? businessName.trim() : 'Bapak/Ibu';
-  const intro = senderName
-    ? `Saya ${senderName}, ${senderRole}.`
-    : `Saya ${senderRole}.`;
 
   if (category === 'kos') {
-    return `Halo Bapak/Ibu/Admin ${name}, salam kenal! ${intro}
+    return `Halo Kak/Pak di ${name}, salam kenal! Saya perhatikan ulasan dan lokasi kosnya di Google Maps sudah sangat strategis.
 
-Saya menemukan profil ${name} di Google Maps dan melihat lokasi serta fasilitasnya sangat potensial untuk calon penghuni baru.
+Biar calon penghuni tidak bolak-balik tanya kamar kosong dan verifikasi KTP lebih rapi, saya bisa bantu siapkan katalog kamar live & alur booking otomatis. Plus desain stand akrilik QR review di resepsionis.
 
-Saya ingin menawarkan pembuatan Website Manajemen & Booking Kamar Resmi untuk ${name} yang dilengkapi fitur:
-- Katalog ketersediaan kamar live (Tersedia / Terisi) agar calon penyewa bisa cek kamar kosong langsung
-- Formulir booking online + upload foto KTP penyewa (tersimpan aman & privat untuk verifikasi)
-- Pengingat otomatis tagihan sewa ke WhatsApp anak kos tiap jatuh tempo (bebas repot nagih manual)
-- Rekap keuangan & pemasukan bulanan otomatis
-
-Website ini bisa dibuat sekali bayar tanpa ada biaya langganan bulanan selamanya. Boleh saya buatkan contoh preview/demo gratisnya terlebih dahulu untuk dilihat Bapak/Ibu? Terima kasih! 🙏`;
+Boleh saya buatkan demo alur/sistemnya dulu tanpa biaya Kak?`;
   }
 
   if (category === 'wedding') {
-    return `Halo Kak/Admin ${name}, salam kenal! ${intro}
+    return `Halo Kak di ${name}, salam kenal! Saya lihat hasil karya dan review ${name} di Google Maps sangat estetik dan berkelas.
 
-Saya melihat portofolio ${name} di Google Maps sangat berkelas dan banyak ulasan positif dari klien.
+Biar calon pengantin bisa langsung cek pricelist dan booking jadwal tanpa chat manual panjang, saya bisa bantu siapkan showcase portofolio interaktif langsung ke WhatsApp.
 
-Saya ingin menawarkan pembuatan Website Showcase & Booking Portofolio Resmi untuk ${name} agar calon pengantin bisa langsung:
-- Melihat galeri foto & video hasil karya berkualitas tinggi (HD)
-- Mengecek rincian paket pricelist dan fasilitas yang didapat
-- Konsultasi booking jadwal tanggal acara langsung ke WhatsApp
-
-Dengan website resmi, citra brand ${name} akan terlihat jauh lebih eksklusif dan terpercaya dibanding hanya mengandalkan media sosial. Boleh saya buatkan preview desain awalnya secara gratis untuk dilihat Kak? Terima kasih!`;
+Boleh saya buatkan demo alur/sistemnya dulu tanpa biaya Kak?`;
   }
 
   if (category === 'properti') {
-    return `Halo Bapak/Ibu/Admin ${name}, salam kenal! ${intro}
+    return `Halo Pak/Bu di ${name}, salam kenal! Portofolio pengerjaan ${name} di Google Maps terlihat sangat rapi dan kredibel.
 
-Saya melihat profil ${name} di Google Maps memiliki reputasi pengerjaan yang sangat baik.
+Biar calon klien proyek bisa langsung lihat galeri hasil renovasi & estimasi konsultasi anggaran dengan cepat, saya bisa siapkan halaman portofolio interaktif.
 
-Saya ingin menawarkan pembuatan Website Profil & Portofolio Proyek Resmi untuk ${name} yang menampilkan:
-- Galeri proyek hasil bangun/renovasi/interior (Before & After)
-- Penjelasan alur kerja, standar material, dan legalitas
-- Formulir konsultasi & estimasi anggaran proyek (RAB) langsung ke WhatsApp
-
-Website resmi sangat penting agar calon klien proyek merasa yakin dan percaya menyerahkan proyek bernilai besar ke ${name}. Boleh saya kirimkan portofolio atau buatkan demo desain gratisnya dulu Bapak/Ibu? Terima kasih!`;
+Boleh saya buatkan demo alur/sistemnya dulu tanpa biaya Bapak/Ibu?`;
   }
 
   if (category === 'rental') {
-    return `Halo Kak/Admin ${name}, salam kenal! ${intro}
+    return `Halo Kak/Pak di ${name}, salam kenal! Saya perhatikan rental ${name} di Google Maps rating ulasannya sangat bagus.
 
-Saya melihat layanan rental ${name} di Google Maps memiliki rating yang sangat bagus.
+Biar calon penyewa bisa langsung cek ketersediaan armada & syarat sewa tanpa bolak-balik tanya admin, saya bisa bantu siapkan katalog booking otomatis ke WhatsApp.
 
-Saya ingin menawarkan pembuatan Website Katalog Armada & Booking Sewa untuk ${name} agar pelanggan bisa langsung:
-- Mengecek daftar unit kendaraan/alat lengkap dengan foto dan tarif harian/mingguan
-- Mengetahui syarat sewa dan ketersediaan unit
-- Alur pemesanan langsung terhubung ke WhatsApp admin
-
-Website ini membuat calon penyewa baru dari Google Maps bisa langsung order tanpa harus tanya-tanya spesifikasi unit berulang kali. Boleh saya buatkan preview demo singkatnya terlebih dahulu Kak? Terima kasih!`;
+Boleh saya buatkan demo alur/sistemnya dulu tanpa biaya Kak?`;
   }
 
   if (category === 'umkm') {
-    return `Halo Kak/Admin ${name}, salam kenal! ${intro}
+    return `Halo Kak/Pak di ${name}, salam kenal! Saya perhatikan ulasan ${name} di Google Maps sangat ramai dan positif.
 
-Saya perhatikan produk ${name} sangat menarik dan potensial di Google Maps.
+Supaya admin tidak kewalahan balas chat tanya menu & harga berulang kali, saya bisa bantu buatkan katalog order instan langsung ke WA plus stand akrilik QR review untuk di meja kasir.
 
-Saya ingin menawarkan pembuatan website katalog visual interaktif & daftar harga untuk ${name} agar pelanggan bisa langsung:
-- Melihat katalog produk lengkap dengan foto berkualitas
-- Mengecek daftar harga terupdate tanpa perlu bolak-balik tanya admin
-- Alur pemesanan langsung terhubung ke WhatsApp
-
-Dengan website katalog, tim ${name} bisa hemat waktu melayani chat tanya harga berulang kali dan penjualan jadi lebih praktis.
-
-Apakah saat ini ${name} ada rencana untuk memiliki website katalog resmi sendiri? Jika berkenan, saya bisa buatkan preview/demo desain gratisnya terlebih dahulu untuk dilihat. Terima kasih banyak!`;
+Boleh saya buatkan demo alur/sistemnya dulu tanpa biaya Kak?`;
   }
 
   if (category === 'jasa') {
-    return `Halo Bapak/Ibu/Admin ${name}, salam kenal! ${intro}
+    return `Halo Kak/Pak di ${name}, salam kenal! Saya lihat reputasi layanan ${name} di Google Maps sudah sangat bagus.
 
-Saya menemukan profil ${name} di Google Maps dengan ulasan yang sangat baik.
+Biar jadwal reservasi dan info layanan bisa dicek otomatis tanpa antre chat, saya bisa siapkan alur booking ringkas plus stand akrilik QR Google review di kasir/resepsionis.
 
-Saya melihat ${name} belum memiliki website resmi. Saya ingin menawarkan pembuatan landing page profil profesional untuk ${name} yang memuat:
-- Informasi lengkap profil layanan & keunggulan
-- Jadwal operasional, paket layanan, dan daftar harga resmi
-- Testimoni pelanggan untuk memperkuat kredibilitas di pencarian Google
-- Tombol konsultasi / booking langsung ke WhatsApp
-
-Website resmi sangat penting agar calon klien merasa lebih percaya dan mudah mendapatkan info valid tanpa harus mencari ke mana-mana.
-
-Boleh saya buatkan contoh preview/demo singkatnya terlebih dahulu untuk ${name}? Terima kasih banyak atas waktunya!`;
+Boleh saya buatkan demo alur/sistemnya dulu tanpa biaya Kak?`;
   }
 
-  return `Halo Kak/Admin ${name}, salam kenal! ${intro}
+  return `Halo Kak/Pak di ${name}, salam kenal! Saya lihat profil dan ulasan ${name} di Google Maps sangat positif di area sekitar.
 
-Saya melihat profil bisnis ${name} di Google Maps memiliki potensi pasar yang sangat bagus, namun sepertinya belum memiliki website resmi.
+Biar alur order pelanggan tidak manual dan bisa tambah ulasan bintang 5 lewat stand akrilik QR di kasir, saya bisa bantu buatkan sistem alur praktis langsung terhubung ke WhatsApp.
 
-Saya ingin menawarkan pembuatan website modern, cepat, dan mobile-friendly yang dirancang khusus untuk meningkatkan kredibilitas serta mempermudah calon pelanggan menemukan dan menghubungi ${name}.
-
-Apakah saat ini ada kebutuhan atau rencana untuk pembuatan website resmi ${name}? Jika tertarik, saya dengan senang hati bisa mengirimkan portofolio atau membuatkan preview desain awal secara gratis. Terima kasih!`;
+Boleh saya buatkan demo alur/sistemnya dulu tanpa biaya Kak?`;
 }
 
 export function createWhatsAppOutreachUrl(

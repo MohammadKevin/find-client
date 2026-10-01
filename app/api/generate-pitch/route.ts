@@ -35,23 +35,22 @@ export async function POST(req: NextRequest) {
     const fallbackText = isGlobal
       ? `Hi ${businessName} Team,
 
-I came across ${businessName} on Google Maps and noticed your great ${rating > 0 ? `${rating}-star ` : ''}reputation around ${address || 'your local area'}.
+I noticed your positive ${rating > 0 ? `${rating}-star ` : ''}reputation on Google Maps around ${address || 'your area'}.
 
-I'm ${senderName}, a ${senderRole}. I noticed you don't have an official modern website linked to your Google business profile yet.
+To help you capture direct orders/bookings automatically and boost more 5-star reviews with a dedicated QR stand system, I can help set up a lightweight custom flow.
 
-I specialize in building clean, ultra-fast, mobile-friendly websites with online booking, service showcases, and direct quote forms designed specifically to help local businesses convert search visitors into paying customers.
-
-Would you be open to a quick, complimentary mockup preview for ${businessName}? I'd be happy to put together a free design concept for you to review with zero obligation.
+Could I prepare a quick, zero-cost preview demo for ${businessName}?
 
 Best regards,
-${senderName}
-Email: ${senderEmail}
-Web & Mobile Developer`
+${senderName}`
       : generateOutreachMessage({
           businessName,
           category,
           senderName,
           senderRole,
+          rating,
+          userRatingCount,
+          address,
         });
 
     if (!apiKey) {
@@ -64,44 +63,33 @@ Web & Mobile Developer`
     }
 
     const prompt = isGlobal
-      ? `You are an expert B2B cold email copywriter crafting highly effective, personalized cold outreach emails for an overseas freelance web developer named "${senderName}" (${senderRole}, email: ${senderEmail}) pitching local business owners/decision-makers in the UK, Europe, US, or Australia.
-
-Business Target Context:
-- Company Name: ${businessName}
-- Industry/Niche: ${category}
+      ? `You are an expert B2B cold outreach copywriter crafting high-converting, value-first messages for freelance developer "${senderName}".
+Target:
+- Business: ${businessName} (${category})
 - Location: ${address || 'Local area'}
-- Google Reviews: ${rating > 0 ? `${rating} stars (${userRatingCount} reviews)` : 'Positive reputation'}
-- Core Opportunity: Great Google Maps reputation, but currently missing a modern, fast, mobile-optimized website.
+- Reviews: ${rating > 0 ? `${rating} stars (${userRatingCount} reviews)` : 'Good reputation'}
 
-Cold Email Writing Guidelines:
-1. Subject Line + Body: Write a punchy subject line on the first line (e.g., "Subject: Quick question regarding website for ${businessName}"), followed by a blank line and the email body.
-2. Tone: Warm, professional, concise, zero-fluff, highly respectful (under 110 words total).
-3. Value Proposition: Highlight increased search customer capture, mobile conversion, and direct online quote/booking forms.
-4. Soft Call-to-Action (Frictionless): Offer to build a free, zero-obligation interactive design mockup for ${businessName}.
-5. Sign-off with:
-   Best regards,
-   ${senderName}
-   ${senderEmail}
-   Freelance Web Developer
-6. Output ONLY the subject line and email body ready to send.`
-      : `Anda adalah seorang copywriter sales outreach WhatsApp profesional dan ramah di Indonesia.
-Tugas Anda: Buat pesan WhatsApp personalisasi, singkat, padat, sopan, dan persuasif dari seorang freelance web developer bernama "${senderName}" (${senderRole}) kepada pemilik/admin bisnis "${businessName}".
-
-Konteks Bisnis:
+STRICT RULES:
+1. NO robotic sales cliches (never say "We are a software house", "Cheap website services", "Do you need a website?").
+2. Max 60-80 words total. Warm, natural, and value-first.
+3. Light audit: Praise their Google Maps reputation, then highlight automation (streamlined booking/catalog) or a cashier Google Review QR acrylic stand to boost 5-star reviews.
+4. Soft frictionless CTA: "Could I put together a free demo flow for you to preview first?"
+5. Output ONLY the ready-to-send message text.`
+      : `Anda adalah copywriter outreach B2B profesional di Indonesia yang ahli dalam pesan pembuka bernilai tinggi (value-first).
+Target Prospek:
 - Nama Bisnis: ${businessName}
-- Kategori/Fokus: ${category}
-- Alamat: ${address || 'Indonesia'}
-- Rating Google: ${rating > 0 ? `${rating} bintang (${userRatingCount} ulasan)` : 'Tidak ada ulasan'}
-- Masalah: Bisnis ini belum memiliki website resmi di Google Maps, padahal reputasinya bagus.
+- Kategori Usaha: ${category}
+- Lokasi: ${address || 'Indonesia'}
+- Rating Google Maps: ${rating > 0 ? `${rating} bintang (${userRatingCount} ulasan)` : 'Reputasi aktif'}
 
-Instruksi Penulisan:
-1. Sapa dengan ramah (Halo Kak/Admin/Bapak/Ibu ${businessName}).
-2. Sebutkan nama saya (${senderName}, ${senderRole}).
-3. Apresiasi bisnis mereka (misal sebut lokasi/reputasi di Google Maps).
-4. Soroti keunggulan memiliki website resmi sesuai kategorinya.
-5. Berikan penawaran tanpa beban (Call to Action halus): Tawaran membuatkan preview / demo desain gratis terlebih dahulu atau kirim portofolio.
-6. Hindari bahasa kaku. Gunakan gaya bahasa Indonesia modern yang natural, hangat, dan profesional.
-7. Output HANYA teks pesan yang siap kirim.`;
+ATURAN KETAT (WAJIB DIPATUHI):
+1. DILARANG KERAS menggunakan frasa klise sales robotik seperti: "Perkenalkan kami dari software house", "Kami menawarkan jasa website murah", "Apakah Anda butuh web?".
+2. Pendekatan VALUE-FIRST (Audit Ringan):
+   - Puji hal positif lokalnya (reputasi/lokasi di Google Maps).
+   - Tunjukkan pain point spesifik: alur reservasi/katalog yang masih manual via chat ATAU kebutuhan stand akrilik QR review Google Maps di meja kasir/resepsionis untuk mendongkrak bintang 5.
+3. Akhiri dengan Call-to-Action (CTA) santai tanpa risiko/beban: "Boleh saya buatkan demo alur/sistemnya dulu tanpa biaya Kak?" (atau variasi serupa yang sangat ramah).
+4. Panjang pesan WAJIB antara 60–80 KATA. Bahasa Indonesia sopan, santai, dan fleksibel (Kak/Pak/Bu).
+5. Output HANYA teks pesan yang siap dikirim tanpa tanda kutip pembuka atau penjelas tambahan.`;
 
     const modelsToTry = [
       'gemini-2.5-flash-lite',
@@ -122,8 +110,8 @@ Instruksi Penulisan:
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
               generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 500,
+                temperature: 0.6,
+                maxOutputTokens: 300,
               },
             }),
           }
@@ -133,7 +121,7 @@ Instruksi Penulisan:
           const data = await geminiRes.json();
           const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (candidate) {
-            generatedText = candidate.trim();
+            generatedText = candidate.trim().replace(/^["']|["']$/g, '');
             break;
           }
         }

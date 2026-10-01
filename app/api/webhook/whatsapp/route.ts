@@ -1,4 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeWhatsAppNumber } from '@/lib/phone-utils';
+import { LeadStatus, RejectionReason } from '@/lib/lead-qualification';
+
+const FRANCHISE_REJECTION_KEYWORDS = [
+  'franchise',
+  'waralaba',
+  'cabang',
+  'kantor pusat',
+  'dari pusat',
+  'pusat kami',
+  'punya pusat',
+  'wewenang pusat',
+  'sudah franchise',
+  'kebijakan pusat',
+  'tanya pusat',
+  'pusat',
+];
+
+const POSITIVE_INTEREST_KEYWORDS = [
+  'harga',
+  'biaya',
+  'tarif',
+  'paket',
+  'ongkos',
+  'berapa',
+  'fee',
+  'pricelist',
+  'price list',
+  'budget',
+  'biayanya',
+  'harganya',
+  'contoh',
+  'portofolio',
+  'portfolio',
+  'demo',
+  'tertarik',
+  'minat',
+  'bisa lihat',
+  'gimana caranya',
+  'caranya',
+  'info lengkap',
+  'boleh',
+  'silahkan',
+  'mau',
+  'kirim',
+  'kirimkan',
+];
 
 const MEETING_KEYWORDS = [
   'ketemu',
@@ -13,20 +60,66 @@ const MEETING_KEYWORDS = [
   'bisa ketemu',
 ];
 
-const PRICING_KEYWORDS = [
-  'harga',
-  'biaya',
-  'tarif',
-  'paket',
-  'ongkos',
-  'berapa',
-  'fee',
-  'pricelist',
-  'price list',
-  'budget',
-  'biayanya',
-  'harganya',
-];
+export interface IncomingIntentResult {
+  intent: 'LOST_FRANCHISE' | 'INTERESTED' | 'MEETING' | 'UNKNOWN';
+  leadStatus: LeadStatus;
+  rejectionReason: RejectionReason;
+  suggestedReply: string;
+  shouldNotifyOwner: boolean;
+  takeoverAlertMessage?: string;
+}
+
+export function detectIncomingIntent(message: string): IncomingIntentResult {
+  const lower = message.toLowerCase().trim();
+
+  const isFranchiseReject = FRANCHISE_REJECTION_KEYWORDS.some((kw) =>
+    lower.includes(kw)
+  );
+  if (isFranchiseReject) {
+    return {
+      intent: 'LOST_FRANCHISE',
+      leadStatus: 'LOST_FRANCHISE',
+      rejectionReason: 'Franchise',
+      suggestedReply:
+        'Baik Kak/Bapak/Ibu, terima kasih banyak atas informasinya dan mohon maaf jika sempat mengganggu waktunya. Sukses selalu untuk usahanya! 🙏',
+      shouldNotifyOwner: false,
+    };
+  }
+
+  const isMeeting = MEETING_KEYWORDS.some((kw) => lower.includes(kw));
+  if (isMeeting) {
+    return {
+      intent: 'MEETING',
+      leadStatus: 'INTERESTED',
+      rejectionReason: null,
+      suggestedReply: `Halo Kak/Bapak/Ibu, terima kasih banyak atas undangannya! 🙏\n\nPerkenalkan saya Kevin. Untuk presentasi atau share screen demo alur sistemnya, saya sangat siap melalui Google Meet/Zoom singkat 10-15 menit atau diskusi via WhatsApp. Kira-kira lebih nyaman opsi yang mana Kak?`,
+      shouldNotifyOwner: true,
+      takeoverAlertMessage: '🚨 PROSPEK MENGAJAK MEETING / KETEMUAN! Segera ambil alih chat.',
+    };
+  }
+
+  const isPositiveInterest = POSITIVE_INTEREST_KEYWORDS.some((kw) =>
+    lower.includes(kw)
+  );
+  if (isPositiveInterest) {
+    return {
+      intent: 'INTERESTED',
+      leadStatus: 'INTERESTED',
+      rejectionReason: null,
+      suggestedReply: `Halo Kak/Bapak/Ibu, terima kasih atas respons positifnya! Terkait demo alur pemesanan dan katalog interaktif, saya sudah siapkan konsep ringkasnya. Boleh saya kirimkan tautan preview desainnya ke nomor ini Kak?`,
+      shouldNotifyOwner: true,
+      takeoverAlertMessage: '🔥 PROSPEK TERTARIK / TANYA HARGA / CONTOH! Segera hubungi prospek.',
+    };
+  }
+
+  return {
+    intent: 'UNKNOWN',
+    leadStatus: 'CONTACTED',
+    rejectionReason: null,
+    suggestedReply: `Halo Kak, terima kasih sudah membalas! Apakah ada bagian dari sistem alur otomatis atau stand akrilik QR kasir yang ingin Kakak tanyakan lebih lanjut?`,
+    shouldNotifyOwner: false,
+  };
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,7 +131,10 @@ export async function POST(req: NextRequest) {
       const body = await req.json().catch(() => ({}));
       sender = (body.sender || body.from || '').toString().trim();
       message = (body.message || body.text || '').toString().trim();
-    } else if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')) {
+    } else if (
+      contentType.includes('application/x-www-form-urlencoded') ||
+      contentType.includes('multipart/form-data')
+    ) {
       const formData = await req.formData().catch(() => null);
       if (formData) {
         sender = (formData.get('sender') || formData.get('from') || '').toString().trim();
@@ -61,89 +157,87 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const normalizedSender = normalizeWhatsAppNumber(sender);
+    const intentAnalysis = detectIncomingIntent(message);
+
+    const sheetUrl =
+      process.env.GOOGLE_SHEETS_WEBAPP_URL || process.env.NEXT_PUBLIC_LEADS_SHEET_API;
+    let sheetSynced = false;
+
+    if (sheetUrl) {
+      try {
+        await fetch(sheetUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: sender,
+            normalizedPhone: normalizedSender,
+            status: intentAnalysis.leadStatus,
+            rejectionReason: intentAnalysis.rejectionReason,
+            lastSyncAt: new Date().toISOString(),
+            contactedAt: new Date().toISOString(),
+          }),
+        });
+        sheetSynced = true;
+      } catch {
+      }
+    }
+
+    const ownerNotificationUrl = process.env.OWNER_NOTIFICATION_WEBHOOK_URL;
+    let notifiedOwner = false;
+
+    if (intentAnalysis.shouldNotifyOwner && ownerNotificationUrl) {
+      try {
+        await fetch(ownerNotificationUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            alert: intentAnalysis.takeoverAlertMessage,
+            sender: normalizedSender,
+            incomingMessage: message,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+        notifiedOwner = true;
+      } catch {
+      }
+    }
+
     const token = process.env.FONNTE_TOKEN || process.env.FONNTE_API_TOKEN;
-    if (!token) {
-      return NextResponse.json(
-        { status: 'error', message: 'FONNTE_TOKEN belum dikonfigurasi di environment variable.' },
-        { status: 500 }
-      );
-    }
+    let autoReplied = false;
 
-    const lowerMsg = message.toLowerCase();
-    let replyText: string | null = null;
-    let matchedIntent: 'meeting' | 'pricing' | null = null;
+    if (token && intentAnalysis.suggestedReply && intentAnalysis.intent === 'LOST_FRANCHISE') {
+      try {
+        const formData = new FormData();
+        formData.append('target', sender);
+        formData.append('message', intentAnalysis.suggestedReply);
+        formData.append('countryCode', '62');
 
-    const isMeeting = MEETING_KEYWORDS.some((kw) => lowerMsg.includes(kw));
-    const isPricing = PRICING_KEYWORDS.some((kw) => lowerMsg.includes(kw));
-
-    if (isMeeting) {
-      matchedIntent = 'meeting';
-      replyText = `Halo Kak/Bapak/Ibu, terima kasih banyak atas responsnya! 🙏
-
-Perkenalkan, saya Kevin. Kebetulan saat ini saya masih berstatus sebagai siswa di SMK Telkom Malang, jadi untuk jam sekolah aktivitas saya difokuskan di kelas.
-
-Namun untuk diskusi konsep atau presentasi preview website, saya sangat siap dan fleksibel melalui:
-1. Google Meet / Zoom (10–15 menit) untuk share screen demo desain & alur fiturnya
-2. Diskusi langsung via WhatsApp Chat / Call di luar jam sekolah
-
-Kira-kira Kakak/Bapak/Ibu lebih nyaman ngobrol via chat terlebih dahulu atau atur jadwal singkat via Google Meet? Terima kasih banyak atas kesempatannya!`;
-    } else if (isPricing) {
-      matchedIntent = 'pricing';
-      replyText = `Halo Kak/Bapak/Ibu, terima kasih atas ketertarikannya!
-
-Untuk biaya pembuatan website di tempat kami sangat terjangkau & fleksibel menyesuaikan kebutuhan UMKM / Instansi lokal:
-
-Estimasi Paket Website:
-• Landing Page Profil / Katalog Ringkas: mulai Rp300.000 – Rp450.000
-• Website Katalog Interaktif + Direct Order WhatsApp: Rp500.000 – Rp700.000
-(Sudah termasuk integrasi tombol WhatsApp, desain responsif mobile-friendly, dan optimasi dasar di Google Maps/Search).
-
-Kira-kira kebutuhan utama bisnis saat ini lebih ke landing page profil resmi atau katalog visual produk ya Kak? Biar bisa saya siapkan preview desain yang paling pas.`;
-    }
-
-    if (!replyText) {
-      return NextResponse.json(
-        { status: 'success', replied: false, message: 'Tidak ada kata kunci yang cocok untuk auto-reply.' },
-        { status: 200 }
-      );
-    }
-
-    const outgoingFormData = new FormData();
-    outgoingFormData.append('target', sender);
-    outgoingFormData.append('message', replyText);
-    outgoingFormData.append('countryCode', '62');
-
-    const fonnteRes = await fetch('https://api.fonnte.com/send', {
-      method: 'POST',
-      headers: {
-        Authorization: token,
-      },
-      body: outgoingFormData,
-    });
-
-    const fonnteData = await fonnteRes.json().catch(() => null);
-
-    if (!fonnteRes.ok || (fonnteData && fonnteData.status === false)) {
-      return NextResponse.json(
-        {
-          status: 'error',
-          replied: false,
-          error: fonnteData?.reason || 'Gagal mengirim pesan balasan via Fonnte.',
-          details: fonnteData,
-        },
-        { status: 400 }
-      );
+        await fetch('https://api.fonnte.com/send', {
+          method: 'POST',
+          headers: { Authorization: token },
+          body: formData,
+        });
+        autoReplied = true;
+      } catch {
+      }
     }
 
     return NextResponse.json({
       status: 'success',
-      replied: true,
-      matchedIntent,
-      target: sender,
-      data: fonnteData,
+      sender: normalizedSender,
+      intent: intentAnalysis.intent,
+      leadStatus: intentAnalysis.leadStatus,
+      rejectionReason: intentAnalysis.rejectionReason,
+      suggestedReply: intentAnalysis.suggestedReply,
+      shouldNotifyOwner: intentAnalysis.shouldNotifyOwner,
+      notifiedOwner,
+      sheetSynced,
+      autoReplied,
     });
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : 'Terjadi kesalahan internal pada webhook.';
+    const errorMsg =
+      error instanceof Error ? error.message : 'Terjadi kesalahan internal pada webhook.';
     return NextResponse.json({ status: 'error', message: errorMsg }, { status: 500 });
   }
 }
