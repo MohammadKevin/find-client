@@ -1569,7 +1569,7 @@ if (Array.isArray(data.remoteRecords)) {
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold uppercase">Rekomendasi</span>
-                      <span className="text-[10px] text-slate-400 font-mono">{savedLeadsCrm.filter(l => (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') && l.phoneAnalysis?.isValid && l.phoneAnalysis?.isMobile).length} siap kirim</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{savedLeadsCrm.filter(l => (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') && l.phoneAnalysis?.isValid && l.phoneAnalysis?.isMobile && !phoneRegistry[l.phoneAnalysis.cleaned]).length} siap kirim</span>
                     </div>
                     <h3 className="text-sm font-bold text-slate-900">Kirim Prospek Baru</h3>
                     <p className="text-[11px] text-slate-500 mt-1">Auto-pilih prospek NEW & QUALIFIED dari CRM, generate pitch AI, kirim WA dengan jeda aman.</p>
@@ -1578,8 +1578,8 @@ if (Array.isArray(data.remoteRecords)) {
                     onClick={async () => {
                       const remaining = Math.max(0, missionDailyTarget - missionTodaySent);
                       if (remaining === 0) { showToast('success', 'Target harian sudah tercapai!'); return; }
-                      const candidates = savedLeadsCrm.filter((l) => (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') && l.phoneAnalysis?.isValid && l.phoneAnalysis?.isMobile).slice(0, remaining);
-                      if (candidates.length === 0) { showToast('error', 'Tidak ada prospek baru. Cari dulu di tab Discovery.'); return; }
+                      const candidates = savedLeadsCrm.filter((l) => (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') && l.phoneAnalysis?.isValid && l.phoneAnalysis?.isMobile && !phoneRegistry[l.phoneAnalysis.cleaned]).slice(0, remaining);
+                      if (candidates.length === 0) { showToast('error', 'Tidak ada prospek baru yang belum pernah dikontak. Cari dulu di tab Discovery.'); return; }
                       setIsMissionSending(true);
                       let sentCount = 0;
                       for (let i = 0; i < candidates.length; i++) {
@@ -1616,7 +1616,7 @@ if (Array.isArray(data.remoteRecords)) {
                     className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-base flex items-center justify-center gap-3 cursor-pointer shadow-md transition-all active:scale-[0.98]"
                   >
                     <FontAwesomeIcon icon={faBolt} className={`h-5 w-5 ${isMissionSending ? 'animate-spin' : ''}`} />
-                    <span>{isMissionSending ? 'Mengirim...' : (() => { const available = savedLeadsCrm.filter((l: LeadWithMeta) => (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') && l.phoneAnalysis?.isValid && l.phoneAnalysis?.isMobile).length; const rem = Math.max(0, missionDailyTarget - missionTodaySent); return 'Kirim Semua (' + Math.min(available, rem) + ')'; })()}</span>
+                    <span>{isMissionSending ? 'Mengirim...' : (() => { const available = savedLeadsCrm.filter((l: LeadWithMeta) => (l.leadStatus === 'NEW' || l.leadStatus === 'QUALIFIED') && l.phoneAnalysis?.isValid && l.phoneAnalysis?.isMobile && !phoneRegistry[l.phoneAnalysis.cleaned]).length; const rem = Math.max(0, missionDailyTarget - missionTodaySent); return 'Kirim Semua (' + Math.min(available, rem) + ')'; })()}</span>
                   </button>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs flex flex-col justify-between space-y-4">
