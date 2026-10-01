@@ -6,15 +6,13 @@ import {
   faSearch, faPhone, faPaperPlane, faDownload, faCheckCircle, faTimesCircle, 
   faSync, faFileExcel, faBullseye, faMagic, faQuoteLeft, faUsers, faBolt, 
   faRobot, faClock, faCheckDouble, faBars, faTimes, faLock, faSignOutAlt, 
-  faLayerGroup, faExclamationTriangle, faTarget, faExternalLink, faCopy,
-  faMapMarkerAlt, faStar, faEye, faMessage, faChevronDown, faSmartphone,
-  faArrowRight, faEnvelope, faShieldCheck, faDatabase, faSlidersH, faFilter
+  faLayerGroup, faExclamationTriangle, faExternalLinkSquare, faCopy,
+  faMapMarkerAlt, faStar, faEye, faMessage, faChevronDown, faMobileAlt,
+  faArrowRight, faEnvelope, faCheckSquare, faDatabase, faSlidersH, faFilter,
+  faCrosshairs, faShieldAlt, faShield, faLayerGroup as faLayered, faStarOfLife
 } from '@fortawesome/free-solid-svg-icons';
 
-import {
-  faCheckCircle as faCheckCircleRegular,
-  faXCircle as faXCircleRegular
-} from '@fortawesome/free-regular-svg-icons';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 
 // Mapping helper to replace the missing Lucide components with FontAwesome
 const Icon = ({ icon, className }: { icon: any; className?: string }) => (
@@ -1126,7 +1124,7 @@ export default function LeadFinderApp() {
       <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center p-4 antialiased">
         <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-8 shadow-xs text-center space-y-6">
           <div className="mx-auto w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
-            <Lock className="h-6 w-6" />
+            <FontAwesomeIcon icon={faLock} className="h-6 w-6" />
           </div>
           <div>
             <h1 className="text-base font-bold text-slate-900 tracking-tight">Leads Machine CRM</h1>
@@ -1167,7 +1165,7 @@ export default function LeadFinderApp() {
       <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs animate-pulse">
-            <Target className="h-5 w-5" />
+            <FontAwesomeIcon icon={faBullseye} className="h-5 w-5" />
           </div>
           <p className="text-xs font-semibold text-slate-800">Menyiapkan CRM Workspace...</p>
         </div>
@@ -1188,9 +1186,9 @@ export default function LeadFinderApp() {
             }`}
           >
             {notification.type === 'success' ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+              <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4 text-emerald-400 shrink-0" />
             ) : (
-              <XCircle className="h-4 w-4 text-rose-400 shrink-0" />
+              <FontAwesomeIcon icon={faTimesCircle} className="h-4 w-4 text-rose-400 shrink-0" />
             )}
             <span>{notification.message}</span>
           </div>
@@ -1208,7 +1206,7 @@ export default function LeadFinderApp() {
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold shadow-xs">
-                <Target className="h-4 w-4 text-emerald-400" />
+                <FontAwesomeIcon icon={faBullseye} className="h-4 w-4 text-emerald-400" />
               </div>
               <div>
                 <h2 className="font-bold text-xs tracking-tight text-slate-900 flex items-center gap-1">
@@ -1228,7 +1226,7 @@ export default function LeadFinderApp() {
               onClick={() => setMobileSidebarOpen(false)}
               className="md:hidden p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
             >
-              <X className="h-4 w-4" />
+              <FontAwesomeIcon icon={faTimes} className="h-4 w-4" />
             </button>
           </div>
 
@@ -1272,7 +1270,7 @@ export default function LeadFinderApp() {
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Search className={`h-4 w-4 ${activeTab === 'search' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                <FontAwesomeIcon icon={faSearch} className={`h-4 w-4 ${activeTab === 'search' ? 'text-emerald-400' : 'text-slate-500'}`} />
                 <span>Discovery &amp; Search</span>
               </div>
               {leads.length > 0 && (
@@ -1298,7 +1296,7 @@ export default function LeadFinderApp() {
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Layers className={`h-4 w-4 ${activeTab === 'crm' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                <FontAwesomeIcon icon={faLayerGroup} className={`h-4 w-4 ${activeTab === 'crm' ? 'text-emerald-400' : 'text-slate-500'}`} />
                 <span>Pipeline CRM (11-Kolom)</span>
               </div>
               <span
@@ -1322,7 +1320,7 @@ export default function LeadFinderApp() {
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <MessageSquareQuote className={`h-4 w-4 ${activeTab === 'copilot' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                <FontAwesomeIcon icon={faQuoteLeft} className={`h-4 w-4 ${activeTab === 'copilot' ? 'text-emerald-400' : 'text-slate-500'}`} />
                 <span>AI Copilot (Chat)</span>
               </div>
               <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200">
@@ -1342,7 +1340,7 @@ export default function LeadFinderApp() {
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Sparkles className={`h-4 w-4 ${activeTab === 'templates' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                <FontAwesomeIcon icon={faMagic} className={`h-4 w-4 ${activeTab === 'templates' ? 'text-emerald-400' : 'text-slate-500'}`} />
                 <span>Pitch Templates</span>
               </div>
             </button>
@@ -1359,7 +1357,7 @@ export default function LeadFinderApp() {
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Download className={`h-4 w-4 ${activeTab === 'export' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                <FontAwesomeIcon icon={faDownload} className={`h-4 w-4 ${activeTab === 'export' ? 'text-emerald-400' : 'text-slate-500'}`} />
                 <span>Export &amp; Database</span>
               </div>
             </button>
@@ -1382,7 +1380,7 @@ export default function LeadFinderApp() {
                 className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
                 title="Kunci / Logout"
               >
-                <LogOut className="h-4 w-4" />
+                <FontAwesomeIcon icon={faSignOutAlt} className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -1398,7 +1396,7 @@ export default function LeadFinderApp() {
               onClick={() => setMobileSidebarOpen(true)}
               className="md:hidden p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
             >
-              <Menu className="h-5 w-5" />
+              <FontAwesomeIcon icon={faBars} className="h-5 w-5" />
             </button>
             <div>
               <h1 className="text-sm font-bold text-slate-900 tracking-tight capitalize truncate">
@@ -1425,7 +1423,7 @@ export default function LeadFinderApp() {
                 disabled={isSyncingCrm}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs cursor-pointer"
               >
-                <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${isSyncingCrm ? 'animate-spin' : ''}`} />
+                <FontAwesomeIcon icon={faSync} className={`h-3.5 w-3.5 text-slate-500 ${isSyncingCrm ? 'animate-spin' : ''}`} />
                 <span>{isSyncingCrm ? 'Syncing...' : 'Sync Sheet'}</span>
               </button>
             )}
@@ -1490,7 +1488,7 @@ export default function LeadFinderApp() {
                           disabled={isLoading}
                           className="absolute right-1 px-3 py-1.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
                         >
-                          <Search className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+                          <FontAwesomeIcon icon={faSearch} className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
                           <span>{isLoading ? 'Mencari...' : 'Cari'}</span>
                         </button>
                       </div>
@@ -1529,7 +1527,7 @@ export default function LeadFinderApp() {
                         className="rounded border-slate-300 text-slate-900 focus:ring-0 cursor-pointer"
                       />
                       <span className="font-semibold text-slate-800 flex items-center gap-1">
-                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                        <FontAwesomeIcon icon={faShieldAlt} className="h-3.5 w-3.5 text-emerald-600" />
                         Blokir Jaringan Franchise (Indomaret, Sakamoto, dll)
                       </span>
                     </label>
@@ -1542,7 +1540,7 @@ export default function LeadFinderApp() {
                         className="rounded border-slate-300 text-slate-900 focus:ring-0 cursor-pointer"
                       />
                       <span className="font-medium text-slate-700 flex items-center gap-1">
-                        <Target className="h-3.5 w-3.5 text-blue-600" />
+                        <FontAwesomeIcon icon={faBullseye} className="h-3.5 w-3.5 text-blue-600" />
                         Target Ideal Saja (10–100 Ulasan &amp; No Web)
                       </span>
                     </label>
@@ -1573,7 +1571,7 @@ export default function LeadFinderApp() {
               {/* Error Alert */}
               {errorMessage && (
                 <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="h-4 w-4 text-rose-600 shrink-0" />
                   <span>{errorMessage}</span>
                 </div>
               )}
@@ -1677,7 +1675,7 @@ export default function LeadFinderApp() {
                                       className="text-blue-600 hover:underline inline-flex items-center gap-0.5"
                                     >
                                       <span>Ada</span>
-                                      <ExternalLink className="h-2 w-2" />
+                                      <FontAwesomeIcon icon={faExternalLinkSquare} className="h-2 w-2" />
                                     </a>
                                   ) : (
                                     <span className="text-amber-800">Tanpa Web</span>
@@ -1707,7 +1705,7 @@ export default function LeadFinderApp() {
                               disabled={generatingAiId === lead.id}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer shadow-xs"
                             >
-                              <Sparkles className={`h-3 w-3 text-purple-600 ${generatingAiId === lead.id ? 'animate-spin' : ''}`} />
+                              <FontAwesomeIcon icon={faMagic} className={`h-3 w-3 text-purple-600 ${generatingAiId === lead.id ? 'animate-spin' : ''}`} />
                               <span>{lead.generatedPitch ? 'Draf Ulang' : 'Draf AI'}</span>
                             </button>
 
@@ -1717,7 +1715,7 @@ export default function LeadFinderApp() {
                                 disabled={!cleanP}
                                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300 cursor-pointer"
                               >
-                                <Send className="h-3 w-3 text-emerald-600" />
+                                <FontAwesomeIcon icon={faPaperPlane} className="h-3 w-3 text-emerald-600" />
                                 <span>Chat WA</span>
                               </button>
 
@@ -1726,7 +1724,7 @@ export default function LeadFinderApp() {
                                 disabled={!cleanP || sendingId === lead.id || dispatchCooldown > 0}
                                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-semibold cursor-pointer shadow-xs"
                               >
-                                <Zap className="h-3 w-3 text-emerald-400 fill-current" />
+                                <FontAwesomeIcon icon={faBolt} className="h-3 w-3 text-emerald-400" />
                                 <span>{sendingId === lead.id ? 'Kirim...' : 'Kirim'}</span>
                               </button>
                             </div>
@@ -1759,7 +1757,7 @@ export default function LeadFinderApp() {
                       disabled={isBatchGenerating || isBatchSending}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold cursor-pointer"
                     >
-                      <Bot className="h-3.5 w-3.5" />
+                      <FontAwesomeIcon icon={faRobot} className="h-3.5 w-3.5" />
                       <span>Draf AI Semua</span>
                     </button>
 
@@ -1768,7 +1766,7 @@ export default function LeadFinderApp() {
                       disabled={isBatchGenerating || isBatchSending}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold cursor-pointer"
                     >
-                      <Zap className="h-3.5 w-3.5 fill-current" />
+                      <FontAwesomeIcon icon={faBolt} className="h-3.5 w-3.5 fill-current" />
                       <span>Kirim WA Semua (Jeda 45-120s)</span>
                     </button>
 
@@ -1803,7 +1801,7 @@ export default function LeadFinderApp() {
                     disabled={isSyncingCrm}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs cursor-pointer"
                   >
-                    <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${isSyncingCrm ? 'animate-spin' : ''}`} />
+<FontAwesomeIcon icon={faSync} className={`h-3.5 w-3.5 text-slate-500 ${isSyncingCrm ? 'animate-spin' : ''}`} />
                     <span>{isSyncingCrm ? 'Sinkron...' : 'Sync Sheet'}</span>
                   </button>
                   <button
@@ -1811,21 +1809,21 @@ export default function LeadFinderApp() {
                     disabled={isSyncingCrm}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-semibold shadow-xs cursor-pointer"
                   >
-                    <RefreshCw className="h-3.5 w-3.5 text-rose-600" />
+                    <FontAwesomeIcon icon={faSync} className="h-3.5 w-3.5 text-rose-600" />
                     <span>Reset Cache &amp; Sync</span>
                   </button>
                   <button
                     onClick={handleDownloadWaList}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition cursor-pointer"
                   >
-                    <Download className="h-3.5 w-3.5" />
+                    <FontAwesomeIcon icon={faDownload} className="h-3.5 w-3.5" />
                     <span>Download WA</span>
                   </button>
                   <button
                     onClick={handleDownloadCsv}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition cursor-pointer"
                   >
-                    <FileSpreadsheet className="h-3.5 w-3.5 text-slate-400" />
+                    <FontAwesomeIcon icon={faFileExcel} className="h-3.5 w-3.5 text-slate-400" />
                     <span>Export CSV</span>
                   </button>
                 </div>
@@ -1929,7 +1927,7 @@ export default function LeadFinderApp() {
               {savedLeadsCrm.length === 0 ? (
                 <div className="text-center py-16 bg-white rounded-xl border border-slate-200 p-8">
                   <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                    <FileSpreadsheet className="h-6 w-6 text-slate-400" />
+                    <FontAwesomeIcon icon={faFileExcel} className="h-6 w-6 text-slate-400" />
                   </div>
                   <h4 className="text-sm font-bold text-slate-800">Belum ada prospek tersimpan</h4>
                   <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
@@ -1940,7 +1938,7 @@ export default function LeadFinderApp() {
                       onClick={() => setActiveTab('search')}
                       className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer shadow-xs"
                     >
-                      <Search className="h-3.5 w-3.5" />
+                      <FontAwesomeIcon icon={faSearch} className="h-3.5 w-3.5" />
                       <span>Cari Prospek Baru</span>
                     </button>
                   </div>
@@ -2017,7 +2015,7 @@ export default function LeadFinderApp() {
                                     className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
                                     title="Buka di Google Maps"
                                   >
-                                    <MapPin className="h-3 w-3" />
+                                    <FontAwesomeIcon icon={faMapMarkerAlt} className="h-3 w-3" />
                                     <span>Maps</span>
                                   </a>
                                 </td>
@@ -2033,7 +2031,7 @@ export default function LeadFinderApp() {
                                       className="text-blue-600 hover:underline inline-flex items-center gap-0.5 truncate max-w-[100px]"
                                     >
                                       <span>{lead.websiteUri || lead.website}</span>
-                                      <ExternalLink className="h-2.5 w-2.5" />
+                                      <FontAwesomeIcon icon={faExternalLinkSquare} className="h-2.5 w-2.5" />
                                     </a>
                                   ) : (
                                     <span className="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded font-medium text-[10px] border border-amber-200">
@@ -2094,7 +2092,7 @@ export default function LeadFinderApp() {
                                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-medium border border-slate-200 cursor-pointer"
                                     title="Klik untuk menyalin draft pitch"
                                   >
-                                    <Copy className="h-2.5 w-2.5 text-slate-500" />
+                                    <FontAwesomeIcon icon={faCopy} className="h-2.5 w-2.5 text-slate-500" />
                                     <span>Salin</span>
                                   </button>
                                 </td>
@@ -2109,7 +2107,7 @@ export default function LeadFinderApp() {
                                       className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-[10px] border border-emerald-300 cursor-pointer"
                                       title="Buka WhatsApp manual"
                                     >
-                                      <Send className="h-2.5 w-2.5 text-emerald-600" />
+                                      <FontAwesomeIcon icon={faPaperPlane} className="h-2.5 w-2.5 text-emerald-600" />
                                       <span>WA</span>
                                     </button>
 
@@ -2123,7 +2121,7 @@ export default function LeadFinderApp() {
                                       className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[10px] border border-purple-200 cursor-pointer"
                                       title="Buka Copilot Balas AI"
                                     >
-                                      <MessageSquareQuote className="h-2.5 w-2.5" />
+                                      <FontAwesomeIcon icon={faQuoteLeft} className="h-2.5 w-2.5" />
                                       <span>AI</span>
                                     </button>
                                   </div>
@@ -2146,7 +2144,7 @@ export default function LeadFinderApp() {
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <MessageSquare className="h-4 w-4 text-purple-600" />
+                    <FontAwesomeIcon icon={faMessage} className="h-4 w-4 text-purple-600" />
                     Pesan Masuk dari Calon Klien
                   </h3>
                   {copilotIntent && (
@@ -2205,7 +2203,7 @@ export default function LeadFinderApp() {
                   disabled={isGeneratingCopilot || !copilotIncomingMessage.trim()}
                   className="w-full py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                 >
-                  <Bot className={`h-4 w-4 ${isGeneratingCopilot ? 'animate-spin text-purple-400' : ''}`} />
+                  <FontAwesomeIcon icon={faRobot} className={`h-4 w-4 ${isGeneratingCopilot ? 'animate-spin text-purple-400' : ''}`} />
                   <span>{isGeneratingCopilot ? 'Menganalisis Intent & Draf...' : 'Buat Balasan AI Value-First'}</span>
                 </button>
               </div>
@@ -2215,7 +2213,7 @@ export default function LeadFinderApp() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="h-4 w-4 text-emerald-600" />
+                      <FontAwesomeIcon icon={faMagic} className="h-4 w-4 text-emerald-600" />
                       Draf Balasan Siap Kirim
                     </h3>
                     <span className="text-[10px] text-slate-400 font-mono">50–70 Kata</span>
@@ -2240,7 +2238,7 @@ export default function LeadFinderApp() {
                     disabled={!copilotGeneratedReply}
                     className="flex-1 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Copy className="h-3.5 w-3.5 text-slate-500" />
+                    <FontAwesomeIcon icon={faCopy} className="h-3.5 w-3.5 text-slate-500" />
                     <span>Salin Pesan</span>
                   </button>
 
@@ -2249,7 +2247,7 @@ export default function LeadFinderApp() {
                     disabled={isSendingCopilot || !copilotGeneratedReply || !copilotPhone}
                     className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
-                    <Send className="h-3.5 w-3.5" />
+                    <FontAwesomeIcon icon={faPaperPlane} className="h-3.5 w-3.5" />
                     <span>{isSendingCopilot ? 'Mengirim...' : 'Kirim via WhatsApp'}</span>
                   </button>
                 </div>
@@ -2303,7 +2301,7 @@ export default function LeadFinderApp() {
                         }}
                         className="w-full py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                       >
-                        <Copy className="h-3 w-3 text-slate-500" />
+                        <FontAwesomeIcon icon={faCopy} className="h-3 w-3 text-slate-500" />
                         <span>Salin Template</span>
                       </button>
                     </div>
@@ -2340,7 +2338,7 @@ export default function LeadFinderApp() {
                     onClick={handleDownloadCsv}
                     className="w-full py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                   >
-                    <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                    <FontAwesomeIcon icon={faFileExcel} className="h-4 w-4 text-emerald-400" />
                     <span>Unduh File CSV Lengkap (11 Kolom)</span>
                   </button>
 
@@ -2348,7 +2346,7 @@ export default function LeadFinderApp() {
                     onClick={handleDownloadWaList}
                     className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                   >
-                    <Download className="h-4 w-4" />
+                    <FontAwesomeIcon icon={faDownload} className="h-4 w-4" />
                     <span>Unduh Daftar Nomor WhatsApp Saja (.txt)</span>
                   </button>
                 </div>
